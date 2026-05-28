@@ -39,6 +39,8 @@
 3. 마지막으로 22장부터 27장까지 읽으며 예외 처리와 데코레이터를 이해합니다.
 4. 나머지 장은 코드를 보다가 궁금할 때 사전처럼 찾아보면 됩니다.
 
+문법 설명이 아직 어렵게 느껴진다면 마지막의 42장 "쉬운 예제로 다시 보기"를 먼저 읽어도 좋습니다. 42장은 실제 프로젝트 코드보다 더 작은 예제로 핵심 문법을 다시 풀어 설명합니다.
+
 ## 2. 패키지 실행 구조
 
 이 프로젝트는 다음 명령으로 실행됩니다.
@@ -1261,3 +1263,365 @@ def run(...):
 10. `argparse` subparser로 여러 명령을 하나의 콘솔 앱에 묶었다.
 
 이 10개를 설명할 수 있으면, 단순히 코드를 완성한 것이 아니라 유지보수 가능한 콘솔 서비스를 설계했다는 점을 충분히 보여줄 수 있습니다.
+
+## 42. 쉬운 예제로 다시 보기
+
+앞 장들은 실제 프로젝트 코드를 기준으로 설명했습니다. 이번 장에서는 같은 개념을 더 작은 예제로 다시 봅니다. 실제 가계부 코드가 길게 느껴질 때는 여기 있는 짧은 예제부터 이해한 뒤, 다시 프로젝트 코드로 돌아가면 훨씬 읽기 쉽습니다.
+
+### 42.1 `argparse`는 터미널 입력을 정리해 주는 도구
+
+가계부 앱에서는 사용자가 이런 명령을 입력합니다.
+
+```bash
+python -m budget_app list --limit 3
+```
+
+이 명령은 코드 안에서 `command="list"`, `limit=3` 같은 값으로 정리되어야 합니다. 아주 작은 예제로 보면 다음과 같습니다.
+
+```python
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("name")
+parser.add_argument("--age", type=int, default=0)
+
+args = parser.parse_args()
+
+print(args.name)
+print(args.age)
+```
+
+사용자가 다음처럼 실행하면:
+
+```bash
+python hello.py Mina --age 20
+```
+
+코드 안에서는 이렇게 볼 수 있습니다.
+
+```python
+args.name  # "Mina"
+args.age   # 20
+```
+
+즉, `argparse`는 사용자가 입력한 문자열 명령을 프로그램이 쓰기 좋은 변수로 바꿔 줍니다. 가계부 앱의 `add`, `list`, `search`, `summary`도 같은 원리로 동작합니다.
+
+### 42.2 `dataclass`는 데이터 묶음을 쉽게 만든다
+
+거래 한 건에는 날짜, 금액, 카테고리 같은 값이 함께 있어야 합니다. 이를 따로따로 변수로 들고 다니면 실수하기 쉽습니다.
+
+```python
+date = "2024-01-15"
+amount = 15000
+category = "food"
+```
+
+`dataclass`를 쓰면 관련 값을 하나의 객체로 묶을 수 있습니다.
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class SimpleTransaction:
+    date: str
+    amount: int
+    category: str
+
+tx = SimpleTransaction("2024-01-15", 15000, "food")
+
+print(tx.date)      # 2024-01-15
+print(tx.amount)    # 15000
+print(tx.category)  # food
+```
+
+이 예제에서 `tx`는 거래 한 건입니다. 가계부 프로젝트의 `Transaction`은 이보다 필드가 더 많을 뿐, 기본 생각은 같습니다. 여러 값을 하나의 의미 있는 묶음으로 만드는 것입니다.
+
+### 42.3 `Optional`은 값이 없을 수도 있다는 표시
+
+검색 조건은 사용자가 입력할 수도 있고, 입력하지 않을 수도 있습니다. 예를 들어 메모 검색어가 없을 수도 있습니다.
+
+```python
+from typing import Optional
+
+def print_memo(memo: Optional[str]) -> None:
+    if memo is None:
+        print("메모 없음")
+    else:
+        print(f"메모: {memo}")
+
+print_memo("점심")
+print_memo(None)
+```
+
+`Optional[str]`은 `str`이거나 `None`이라는 뜻입니다. 그래서 이 함수 안에서는 `None`인지 먼저 확인합니다.
+
+가계부 앱에서도 `--memo`, `--category`, `--from`, `--to` 같은 검색 조건은 사용자가 생략할 수 있습니다. 이런 값들은 "없을 수도 있음"을 코드에 표시해야 하므로 `Optional`이 어울립니다.
+
+### 42.4 `Union`은 여러 타입 중 하나를 받겠다는 뜻
+
+금액은 터미널에서 들어오면 문자열입니다.
+
+```python
+"15000"
+```
+
+하지만 프로그램 내부에서는 이미 정수일 수도 있습니다.
+
+```python
+15000
+```
+
+둘 다 받을 수 있게 하려면 `Union`을 사용할 수 있습니다.
+
+```python
+from typing import Union
+
+def parse_amount(value: Union[str, int]) -> int:
+    return int(value)
+
+print(parse_amount("15000"))  # 15000
+print(parse_amount(15000))    # 15000
+```
+
+중요한 점은 입력은 두 종류를 허용하지만, 결과는 항상 `int`로 맞춘다는 것입니다. 가계부 앱의 검증 함수들도 이런 식으로 바깥에서 들어온 값을 내부에서 쓰기 좋은 형태로 바꿉니다.
+
+### 42.5 `yield`는 값을 하나씩 꺼내 주는 문법
+
+`return`은 값을 돌려주고 함수가 끝납니다.
+
+```python
+def get_numbers() -> list[int]:
+    return [1, 2, 3]
+
+for number in get_numbers():
+    print(number)
+```
+
+`yield`는 값을 하나 내보낸 뒤, 함수의 상태를 잠시 멈춥니다. 다음 값이 필요할 때 이어서 실행합니다.
+
+```python
+def make_numbers():
+    yield 1
+    yield 2
+    yield 3
+
+for number in make_numbers():
+    print(number)
+```
+
+출력은 둘 다 `1`, `2`, `3`입니다. 하지만 동작 방식이 다릅니다.
+
+- `return [1, 2, 3]`은 숫자 목록을 한 번에 만들어서 돌려줍니다.
+- `yield`는 숫자를 하나씩 필요할 때마다 내보냅니다.
+
+가계부 앱에서는 거래 파일을 한 줄씩 읽기 위해 `yield`를 사용합니다. 거래가 많아져도 파일 전체를 한 번에 메모리에 올리지 않고 처리할 수 있습니다.
+
+### 42.6 JSONL은 한 줄에 데이터 하나를 저장한다
+
+일반 JSON은 전체 목록을 하나의 큰 배열로 저장할 수 있습니다.
+
+```json
+[
+  {"amount": 15000, "category": "food"},
+  {"amount": 3000, "category": "transport"}
+]
+```
+
+JSONL은 한 줄에 하나의 JSON 객체를 저장합니다.
+
+```json
+{"amount": 15000, "category": "food"}
+{"amount": 3000, "category": "transport"}
+```
+
+새 거래를 추가할 때 JSONL은 파일 끝에 한 줄만 붙이면 됩니다.
+
+```python
+import json
+
+transaction = {"amount": 15000, "category": "food"}
+
+with open("transactions.jsonl", "a", encoding="utf-8") as file:
+    file.write(json.dumps(transaction, ensure_ascii=False) + "\n")
+```
+
+가계부처럼 기록이 계속 늘어나는 프로그램에서는 이 방식이 단순하고 효율적입니다.
+
+### 42.7 `with`는 파일을 자동으로 닫아 준다
+
+파일을 열면 작업이 끝난 뒤 닫아야 합니다.
+
+```python
+file = open("memo.txt", "w", encoding="utf-8")
+file.write("hello")
+file.close()
+```
+
+하지만 중간에 오류가 나면 `close()`까지 도달하지 못할 수 있습니다. 그래서 보통 `with`를 사용합니다.
+
+```python
+with open("memo.txt", "w", encoding="utf-8") as file:
+    file.write("hello")
+```
+
+`with` 블록이 끝나면 파일은 자동으로 닫힙니다. 가계부 앱에서 JSONL과 CSV 파일을 읽고 쓸 때도 같은 이유로 `with`를 사용합니다.
+
+### 42.8 리스트 컴프리헨션은 필터링을 짧게 쓴 것이다
+
+다음 코드는 짝수만 모읍니다.
+
+```python
+numbers = [1, 2, 3, 4, 5, 6]
+
+even_numbers = []
+for number in numbers:
+    if number % 2 == 0:
+        even_numbers.append(number)
+```
+
+리스트 컴프리헨션으로 쓰면 다음과 같습니다.
+
+```python
+numbers = [1, 2, 3, 4, 5, 6]
+even_numbers = [number for number in numbers if number % 2 == 0]
+```
+
+읽는 순서는 다음과 같습니다.
+
+1. `numbers`에서 값을 하나씩 꺼낸다.
+2. 꺼낸 값을 `number`라고 부른다.
+3. `number % 2 == 0`인 값만 남긴다.
+4. 남은 값으로 새 리스트를 만든다.
+
+가계부 앱의 검색도 비슷합니다. 전체 거래를 하나씩 보면서, 조건에 맞는 거래만 결과 리스트에 담습니다.
+
+### 42.9 딕셔너리는 이름표가 붙은 값들의 묶음
+
+카테고리별 지출 합계를 계산한다고 생각해 봅니다.
+
+```python
+transactions = [
+    {"category": "food", "amount": 15000},
+    {"category": "transport", "amount": 3000},
+    {"category": "food", "amount": 8000},
+]
+
+totals = {}
+
+for tx in transactions:
+    category = tx["category"]
+    amount = tx["amount"]
+    totals[category] = totals.get(category, 0) + amount
+
+print(totals)
+```
+
+결과는 다음과 같습니다.
+
+```python
+{"food": 23000, "transport": 3000}
+```
+
+`totals.get(category, 0)`은 "이미 합계가 있으면 가져오고, 처음 보는 카테고리면 0에서 시작하라"는 뜻입니다. 월별 요약 기능의 카테고리 집계도 이 패턴을 사용합니다.
+
+### 42.10 예외는 문제를 발견했을 때 보내는 신호
+
+잘못된 날짜가 들어오면 그냥 넘어가면 안 됩니다. 사용자에게 무엇이 잘못되었는지 알려야 합니다.
+
+```python
+class AppError(Exception):
+    pass
+
+def check_amount(amount: int) -> None:
+    if amount <= 0:
+        raise AppError("금액은 0보다 커야 합니다.")
+
+try:
+    check_amount(-1000)
+except AppError as exc:
+    print(f"[오류] {exc}")
+```
+
+`raise`는 문제를 발견했음을 알리는 신호입니다. `except`는 그 신호를 잡아서 사용자에게 보여주기 좋은 메시지로 바꿉니다.
+
+가계부 앱에서는 날짜 형식, 금액, 거래 유형 등이 잘못되었을 때 `AppError`를 사용합니다. 덕분에 사용자는 긴 내부 오류 대신 이해하기 쉬운 오류 메시지를 볼 수 있습니다.
+
+### 42.11 데코레이터는 함수에 기능을 한 겹 덧붙인다
+
+다음 함수는 인사말을 출력합니다.
+
+```python
+def say_hello():
+    print("hello")
+```
+
+이 함수가 실행되기 전후에 메시지를 추가하고 싶다면 데코레이터를 만들 수 있습니다.
+
+```python
+def add_message(func):
+    def wrapper():
+        print("시작")
+        func()
+        print("끝")
+    return wrapper
+
+@add_message
+def say_hello():
+    print("hello")
+
+say_hello()
+```
+
+출력은 다음과 같습니다.
+
+```text
+시작
+hello
+끝
+```
+
+`@add_message`는 `say_hello()` 자체의 핵심 동작은 그대로 두고, 앞뒤에 부가 동작을 붙입니다. 가계부 앱의 `@log_timing`도 같은 원리입니다. 명령 실행 로직은 그대로 두고, 실행 시간 측정 기능만 바깥에서 덧붙입니다.
+
+### 42.12 `Path`는 파일 경로를 다루기 쉽게 만든다
+
+문자열로 경로를 만들면 직접 `/`를 붙여야 합니다.
+
+```python
+data_dir = "./data"
+path = data_dir + "/transactions.jsonl"
+```
+
+`Path`를 쓰면 경로를 객체처럼 다룰 수 있습니다.
+
+```python
+from pathlib import Path
+
+data_dir = Path("./data")
+path = data_dir / "transactions.jsonl"
+
+print(path)
+```
+
+`Path`는 폴더 만들기, 파일 존재 확인, 파일 열기 같은 작업도 자연스럽게 처리합니다.
+
+```python
+data_dir.mkdir(exist_ok=True)
+path.touch(exist_ok=True)
+```
+
+가계부 앱은 저장 폴더와 JSONL 파일을 다루기 때문에 문자열보다 `Path`가 더 안전하고 읽기 좋습니다.
+
+### 42.13 큰 흐름으로 다시 연결하기
+
+위 예제들을 가계부 앱 흐름에 연결하면 다음과 같습니다.
+
+1. 사용자가 터미널에 명령을 입력한다.
+2. `argparse`가 명령을 `args`로 정리한다.
+3. 서비스 계층이 입력값을 검증하고 `Transaction` 같은 `dataclass` 객체를 만든다.
+4. 객체는 `to_dict()`로 파일에 저장하기 좋은 딕셔너리가 된다.
+5. 저장소 계층이 JSONL 파일에 한 줄로 기록한다.
+6. 목록, 검색, 요약을 할 때는 `yield`로 거래를 한 줄씩 읽는다.
+7. 문제가 있으면 `AppError`로 사용자에게 친절한 오류를 보여준다.
+8. `@log_timing` 같은 데코레이터는 핵심 로직 바깥에서 실행 시간을 기록한다.
+
+따라서 이 프로젝트의 심화 문법은 따로따로 흩어진 지식이 아닙니다. 터미널 입력을 받고, 거래 데이터를 만들고, 파일에 저장하고, 다시 읽어서 보여주기 위한 하나의 흐름 안에서 서로 연결되어 있습니다.
