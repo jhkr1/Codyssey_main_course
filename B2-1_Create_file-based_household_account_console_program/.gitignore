@@ -1,0 +1,4 @@
+budget_app.log
+data/
+__pycache__/
+*.pyc
