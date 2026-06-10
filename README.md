@@ -5,9 +5,9 @@
 코디세이 본과정에서 수행한 미션을 모아 둔 학습 기록 저장소입니다.
 
 ![Course](https://img.shields.io/badge/Codyssey-Main%20Course-2F80ED?style=flat-square)
-![Mission](https://img.shields.io/badge/Missions-3-27AE60?style=flat-square)
+![Mission](https://img.shields.io/badge/Missions-5-27AE60?style=flat-square)
 ![Docs](https://img.shields.io/badge/Docs-Learning%20Log-F2994A?style=flat-square)
-![Stack](https://img.shields.io/badge/Stack-Linux%20%7C%20Python-333333?style=flat-square)
+![Stack](https://img.shields.io/badge/Stack-Linux%20%7C%20Python%20%7C%20Redis%20%7C%20Git%20%7C%20SQL-333333?style=flat-square)
 
 각 폴더는 하나의 미션을 담고 있으며, 단순 결과물보다  
 **문제를 이해한 과정**, **실험과 검증**, **코드와 문서로 남긴 흔적**을 함께 정리하는 것을 목표로 합니다.
@@ -23,6 +23,9 @@
 | `B1-1` | System Control Automation Scripts | Linux 서버 운영, 계정/권한, 방화벽, 로그, cron, Bash 자동화 | [Mission](B1-1_Developing-System-Control-Automation-Scripts/) |
 | `B1-2` | Linux Processes and System Resources | OOM Crash, CPU Spike, Deadlock, 프로세스 관찰, 장애 리포트 | [Mission](B1-2_Troubleshooting_LinuxProcesses_and_System-Resources/) |
 | `B2-1` | File-based Household Account Console Program | Python CLI, 파일 저장소, JSONL, CSV, 예외 처리, 계층형 구조 | [Mission](B2-1_Create_file-based_household_account_console_program/) |
+| `B3-1` | Mini Redis | 메모리 기반 키-값 저장소, 해시맵, LRU, TTL, REPL | [Mission](B3-1_Bulid_mini_Redis/) |
+| `B3-2` | Mini Git | 커밋 그래프, 브랜치, DAG 탐색, 검색, 정렬, CLI | [Mission](B3-2%20_Build_mini_Git/) |
+| `B5-1` | Database Practice | MySQL, 테이블 설계, PK/FK, JOIN, GROUP BY, SQL 실습 | [Mission](B5-1_Database%20/README.md) |
 
 ---
 
@@ -33,7 +36,9 @@
 | Linux Operation | 사용자, 그룹, 권한, 방화벽, 로그, cron을 다루며 서버 운영 흐름을 정리했습니다. |
 | Process Troubleshooting | OOM Crash, CPU Spike, Deadlock을 재현하고 증거 기반 리포트로 분석했습니다. |
 | Python Application | 표준 라이브러리만으로 파일 기반 가계부 CLI를 구현하고 구조를 문서화했습니다. |
-| Documentation | 각 미션을 실습서처럼 읽을 수 있도록 실행 과정, 판단 근거, 결과물을 함께 기록했습니다. |
+| In-Memory Data Store | Redis 핵심 아이디어를 자료구조 수준에서 구현하고 TTL/LRU 동작을 확인했습니다. |
+| Graph-based VCS | Git의 커밋 그래프, 브랜치, 검색, 경로 탐색을 작게 재구성했습니다. |
+| Database Design | 관계형 데이터베이스 설계와 SQL 조회, 조인, 집계를 순서대로 실습했습니다. |
 
 ---
 
@@ -55,42 +60,24 @@ Codyssey_main_course/
 │   ├── README.md
 │   ├── PYTHON_DEEP_DIVE.md
 │   └── budget_app/
+├── B3-1_Bulid_mini_Redis/
+│   ├── README.md
+│   ├── CODE_GUIDE.md
+│   ├── DATA_STRUCTURE_GUIDE.md
+│   └── ...
+├── B3-2 _Build_mini_Git/
+│   ├── README.md
+│   ├── ALGORITHMS_GUIDE.md
+│   ├── GRAPH_AND_DAG_GUIDE.md
+│   └── ...
+├── B5-1_Database /
+│   ├── README.md
+│   ├── DATABASE_STUDY.md
+│   ├── SCHEMA_GUIDE.md
+│   ├── SQL_QUERY_GUIDE.md
+│   └── ...
 └── README.md
 ```
-
----
-
-## What This Repository Focuses On
-
-### 1. 기록으로 설명하기
-
-미션을 끝냈다는 사실보다, 왜 그렇게 해결했는지 설명할 수 있는 기록을 남깁니다.
-
-- 실행 환경
-- 문제 상황
-- 사용한 명령어와 코드
-- 확인한 증거
-- 시행착오와 판단 근거
-- 최종 결과
-
-### 2. 운영 감각 익히기
-
-B1 미션들은 Linux 서버를 운영자의 관점에서 바라보는 데 초점을 둡니다.
-
-- 사용자와 권한을 설계하기
-- 서비스 실행 환경 구성하기
-- 로그와 모니터링으로 상태 관찰하기
-- 장애 상황을 재현하고 증거 기반으로 분석하기
-
-### 3. 프로그램 구조화하기
-
-B2 미션부터는 Python 프로그램을 기능별로 나누고, 유지보수 가능한 콘솔 애플리케이션으로 정리합니다.
-
-- CLI 명령 설계
-- 모델, 저장소, 서비스 계층 분리
-- 입력 검증과 예외 처리
-- 파일 기반 데이터 저장
-- 코드 설명 문서화
 
 ---
 
@@ -134,6 +121,43 @@ Python 표준 라이브러리만 사용해 파일 기반 가계부 콘솔 프로
 
 [미션 보기](B2-1_Create_file-based_household_account_console_program/)
 
+### `B3-1` Mini Redis
+
+메모리 기반 키-값 저장소를 직접 구현하며 해시맵, 이중 연결 리스트, 최소 힙으로 LRU와 TTL 동작을 다룬 미션입니다.
+
+주요 결과물:
+
+- REPL 기반 `mini_redis`
+- 자료구조 설명서
+- 코드 실행 흐름 가이드
+
+[미션 보기](B3-1_Bulid_mini_Redis/)
+
+### `B3-2` Mini Git
+
+Git의 핵심 아이디어를 작게 구현해 커밋 그래프, 브랜치, 탐색, 검색을 다뤄 보는 CLI 미션입니다.
+
+주요 결과물:
+
+- `mini_git` CLI
+- DAG와 알고리즘 가이드
+- 명령어 및 코드 설명 문서
+
+[미션 보기](B3-2%20_Build_mini_Git/)
+
+### `B5-1` Database Practice
+
+카페 주문 데이터를 주제로 MySQL 스키마 설계와 SQL 실습을 단계별로 정리한 미션입니다.
+
+주요 결과물:
+
+- `schema.sql`
+- `sample_data.sql`
+- `queries.sql`
+- 데이터베이스와 SQL 해설 문서
+
+[미션 보기](B5-1_Database%20/README.md)
+
 ---
 
 ## Index
@@ -145,6 +169,16 @@ Python 표준 라이브러리만 사용해 파일 기반 가계부 콘솔 프로
 - [B2-1 README](B2-1_Create_file-based_household_account_console_program/README.md)
 - [B2-1 코드 가이드](B2-1_Create_file-based_household_account_console_program/budget_app/CODE_GUIDE.md)
 - [B2-1 Python Deep Dive](B2-1_Create_file-based_household_account_console_program/PYTHON_DEEP_DIVE.md)
+- [B3-1 README](B3-1_Bulid_mini_Redis/README.md)
+- [B3-1 코드 가이드](B3-1_Bulid_mini_Redis/CODE_GUIDE.md)
+- [B3-1 자료구조 가이드](B3-1_Bulid_mini_Redis/DATA_STRUCTURE_GUIDE.md)
+- [B3-2 README](B3-2%20_Build_mini_Git/README.md)
+- [B3-2 그래프/DAG 가이드](B3-2%20_Build_mini_Git/GRAPH_AND_DAG_GUIDE.md)
+- [B3-2 알고리즘 가이드](B3-2%20_Build_mini_Git/ALGORITHMS_GUIDE.md)
+- [B5-1 README](B5-1_Database%20/README.md)
+- [B5-1 데이터베이스 스터디](B5-1_Database%20/DATABASE_STUDY.md)
+- [B5-1 스키마 가이드](B5-1_Database%20/SCHEMA_GUIDE.md)
+- [B5-1 SQL 쿼리 가이드](B5-1_Database%20/SQL_QUERY_GUIDE.md)
 
 ---
 
