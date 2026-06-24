@@ -2,7 +2,7 @@
 
 ---
 
-# 💻 코드 리뷰: PRG 패턴과 계층형 아키텍처 (Deep Dive)
+# 코드 리뷰: PRG 패턴과 계층형 아키텍처 (Deep Dive)
 
 ## 1장. PRG 패턴의 탄생 배경: 중복 제출의 공포
 
@@ -50,9 +50,9 @@
 ```python
 @router.post("/memos/create")
 def create_memo(title: str = Form(...), content: str = Form(...), db: Session = Depends(get_db)):
-    # 1. 서비스 호출
-    memo_service.create_memo(db, title, content)
-    # 2. 리다이렉트 응답
+    # 1. 서비스 호출을 통한 비즈니스 로직 처리
+    MemoService(db).create_memo(title, content)
+    # 2. 리다이렉트 응답 (PRG 패턴)
     return RedirectResponse(url="/memos", status_code=303)
 ```
 
@@ -63,9 +63,12 @@ def create_memo(title: str = Form(...), content: str = Form(...), db: Session = 
 ## 4장. 서비스 계층 (services/memo_service.py)
 
 ```python
-def create_memo(db: Session, title: str, content: str):
-    new_memo = Memo(title=title, content=content)
-    memo_repository.save(db, new_memo)
+class MemoService:
+    def __init__(self, db: Session):
+        self.repo = MemoRepository(db)
+
+    def create_memo(self, title: str, content: str):
+        return self.repo.create(title, content)
 ```
 
 서비스 계층은 시스템의 **두뇌**이다. 만약 "메모의 제목은 반드시 5자 이상이어야 한다"는 규칙이 생긴다면 어디에 적어야 할까? 라우터에 적으면 나중에 API 호출이 아닌 다른 경로로 메모를 생성할 때 규칙을 놓칠 수 있다. 따라서 모든 비즈니스 규칙은 서비스 계층에 모아두어야 한다.
@@ -75,9 +78,15 @@ def create_memo(db: Session, title: str, content: str):
 ## 5장. 저장소 계층 (repositories/memo_repository.py)
 
 ```python
-def save(db: Session, memo: Memo):
-    db.add(memo)
-    db.commit()
+class MemoRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def create(self, title: str, content: str):
+        memo = Memo(title=title, content=content)
+        self.db.add(memo)
+        self.db.commit()
+        return memo
 ```
 
 저장소 계층은 **데이터베이스와의 소통창구**이다. 이곳은 SQL 쿼리나 ORM 문법이 지저분하게 섞이는 곳이다. 이곳을 분리해두면 나중에 데이터베이스를 SQLite에서 PostgreSQL로 바꾸더라도 서비스 계층의 코드는 단 한 줄도 수정할 필요가 없다.

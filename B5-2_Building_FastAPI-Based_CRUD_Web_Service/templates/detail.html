@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex-between" style="margin-bottom: 1.5rem;">
+    <h2>메모 상세</h2>
+    <a href="/memos" class="btn btn-outline" style="padding: 0.5rem 1rem;">목록으로</a>
+</div>
+
+<div class="container">
+    <div style="margin-bottom: 2rem;">
+        <h1 style="font-size: 2rem; margin-bottom: 1rem; color: var(--primary);">{{ memo.title }}</h1>
+        <div style="background-color: var(--bg-color); padding: 1.5rem; border-radius: 8px; min-height: 150px; white-space: pre-wrap; line-height: 1.6;">{{ memo.content }}</div>
+    </div>
+    
+    <div class="flex-between" style="border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+        <a href="/memos/{{ memo.id }}/edit" class="btn btn-primary">수정하기</a>
+        <form action="/memos/{{ memo.id }}/delete" method="POST" style="margin: 0; display: inline;" onsubmit="return confirm('정말 삭제하시겠습니까?');">
+            <button type="submit" class="btn btn-danger">삭제하기</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

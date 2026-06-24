@@ -112,10 +112,11 @@ def get_db():
     finally:
         db.close()
 
-@app.get("/memos")
-def list_memos(db: Session = Depends(get_db)):
+@router.get("/memos")
+def list_memos(request: Request, db: Session = Depends(get_db)):
     # db를 사용하여 데이터 조회
-    return db.query(Memo).all()
+    service = MemoService(db)
+    return templates.TemplateResponse(request=request, name="list.html", context={"request": request, "memos": service.get_memos()})
 ```
 
 처음에는 그냥 함수 내부에서 DB를 열면 되지 않나 의문이 들 수 있다. 하지만 이렇게 하면 DB 연결을 관리하기 어렵고 테스트하기 힘들다.

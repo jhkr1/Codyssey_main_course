@@ -4,7 +4,30 @@
 
 > 라우터, 서비스, 저장소로 역할을 나누는 구조적 사고를 통해 브라우저 요청이 DB까지 갔다가 화면으로 돌아오는 전체 흐름을 직접 구현한다.
 
-코드 구조와 개념을 자세히 공부하려면 [DEEP_DIVE.md]()를 함께 읽으면 된다.
+코드 구조와 개념을 자세히 공부하려면 [CODE_EXPLANATION.md](CODE_EXPLANATION.md) 및 [DEEP_DIVE.md](DEEP_DIVE.md)를 함께 읽으면 된다.
+
+## 재현 가이드 (실행 방법)
+
+이 프로젝트를 로컬 환경에서 실행하고 테스트하기 위한 방법입니다.
+
+```bash
+# 1. 가상환경 생성
+python3 -m venv venv
+
+# 2. 가상환경 활성화
+# (Mac/Linux)
+source venv/bin/activate
+# (Windows)
+# venv\Scripts\activate
+
+# 3. 필수 라이브러리 설치
+pip install -r requirements.txt
+
+# 4. 서버 기동
+uvicorn main:app --reload
+```
+
+서버가 기동되면 웹 브라우저에서 `http://127.0.0.1:8000/`로 접속하여 나의 메모 앱을 확인하실 수 있습니다.
 
 ## 1장. 미션 개요
 본 미션은 FastAPI와 SQLAlchemy를 활용하여 웹 애플리케이션의 핵심 구성 요소를 직관적인 구조로 설계하는 프로젝트이다. 단순한 기능 구현을 넘어, 라우터, 서비스, 저장소로 역할을 분리하고 PRG 패턴과 ORM을 적용하여 유지보수가 가능한 웹 서비스를 구축하는 것을 목표로 한다.
@@ -34,6 +57,25 @@
 - **템플릿 엔진**: Jinja2
 - **의존성 라이브러리**: `fastapi`, `uvicorn`, `sqlalchemy`, `jinja2`, `python-multipart`
 
+### 실행 방법 (재현 가이드)
+```bash
+# 1. 가상환경 생성
+python3 -m venv venv
+
+# 2. 가상환경 활성화
+# (Mac/Linux)
+source venv/bin/activate
+# (Windows)
+# venv\Scripts\activate
+
+# 3. 필수 라이브러리 설치
+pip install -r requirements.txt
+
+# 4. 서버 기동
+uvicorn main:app --reload
+```
+서버가 기동되면 웹 브라우저에서 `http://127.0.0.1:8000/`로 접속하여 확인할 수 있습니다.
+*(참고: `venv` 폴더는 `.gitignore`에 등록되어 있으므로 Git에 포함되지 않습니다.)*
 ## 5장. 폴더 구조
 ```text
 project_root/
