@@ -14,12 +14,63 @@
 사용할 데이터베이스 선택
 부모 테이블 생성
 자식 테이블 생성
-인덱스 생성
 ```
 
 부모 테이블은 다른 테이블이 참조하는 테이블이다. 자식 테이블은 다른 테이블을 참조하는 테이블이다. 예를 들어 `customer`는 `cafe_order`가 참조하므로 부모 테이블이고, `cafe_order`는 `customer`를 참조하므로 자식 테이블이다.
 
 외래키가 있으므로 테이블 생성 순서가 중요하다. 참조 대상이 되는 테이블이 먼저 만들어져야 한다.
+
+스키마의 전체 관계를 ERD로 보면 다음과 같다.
+
+![카페 주문 데이터베이스 ERD](./images/erd-diagram.png)
+
+아래 Mermaid 다이어그램은 이미지와 같은 관계를 코드로 표현한 것이다.
+
+```mermaid
+erDiagram
+  customer ||--o{ cafe_order : places
+  menu_category ||--o{ menu_item : contains
+  cafe_order ||--o{ order_detail : has
+  menu_item ||--o{ order_detail : ordered_as
+
+  customer {
+    BIGINT customer_id PK
+    VARCHAR name
+    VARCHAR email UK
+    VARCHAR phone UK
+    DATETIME joined_at
+  }
+
+  menu_category {
+    BIGINT category_id PK
+    VARCHAR name UK
+    VARCHAR description
+  }
+
+  menu_item {
+    BIGINT menu_item_id PK
+    BIGINT category_id FK
+    VARCHAR name UK
+    DECIMAL price
+    BOOLEAN is_available
+  }
+
+  cafe_order {
+    BIGINT order_id PK
+    BIGINT customer_id FK
+    ENUM order_status
+    DATETIME ordered_at
+    ENUM payment_method
+  }
+
+  order_detail {
+    BIGINT order_detail_id PK
+    BIGINT order_id FK
+    BIGINT menu_item_id FK
+    INT quantity
+    DECIMAL unit_price
+  }
+```
 
 ## 2. 데이터베이스 초기화
 
@@ -206,13 +257,13 @@ CREATE TABLE order_detail (
 
 `unit_price`는 `menu_item.price`와 비슷해 보이지만 역할이 다르다. `menu_item.price`는 현재 판매 가격이고, `order_detail.unit_price`는 주문이 발생한 순간의 가격이다. 가격 변경 이후에도 과거 매출 계산이 흔들리지 않게 하기 위해 주문 상세에 단가를 저장한다.
 
-## 8. 인덱스 생성
+## 8. 인덱스는 쿼리 실습에서 생성
 
 ```sql
 CREATE INDEX idx_cafe_order_ordered_at ON cafe_order(ordered_at);
 ```
 
-인덱스는 특정 컬럼을 기준으로 데이터를 더 빠르게 찾기 위한 자료구조이다. 이 프로젝트에서는 주문 시각인 `ordered_at`에 인덱스를 둔다.
+인덱스는 특정 컬럼을 기준으로 데이터를 더 빠르게 찾기 위한 자료구조이다. 이 프로젝트에서는 `schema.sql`이 아니라 `queries.sql`의 15번 쿼리에서 주문 시각인 `ordered_at`에 인덱스를 직접 만든다.
 
 주문 목록은 보통 최신순으로 정렬하거나 특정 기간의 주문만 조회한다. 예를 들어 “2026년 3월 4일 이후 주문”을 찾거나 “최근 주문 순서”로 정렬할 때 `ordered_at`이 자주 사용된다.
 
@@ -222,7 +273,7 @@ CREATE INDEX idx_cafe_order_ordered_at ON cafe_order(ordered_at);
 | --- | --- | --- | --- |
 | `idx_cafe_order_ordered_at` | `cafe_order` | `ordered_at` | 기간 조건 조회와 주문 시각 정렬 |
 
-`queries.sql`의 최신 주문 조회는 `ORDER BY ordered_at DESC`를 사용하고, 인덱스 확인 쿼리는 `WHERE ordered_at >= '2026-03-04 00:00:00'`와 `ORDER BY ordered_at`을 함께 사용한다. 두 경우 모두 주문 시각이 검색 또는 정렬 기준이므로 `ordered_at`에 인덱스를 두는 것이 자연스럽다.
+`queries.sql`의 최신 주문 조회는 `ORDER BY ordered_at DESC`를 사용하고, 15번 인덱스 쿼리는 `CREATE INDEX`로 인덱스를 만든 뒤 `WHERE ordered_at >= '2026-03-04 00:00:00'`와 `ORDER BY ordered_at`을 함께 사용해 실행 계획을 확인한다. 두 경우 모두 주문 시각이 검색 또는 정렬 기준이므로 `ordered_at`에 인덱스를 두는 것이 자연스럽다.
 
 반대로 모든 컬럼에 인덱스를 만들지는 않는다. `order_status`나 `payment_method`도 조회에 쓰일 수 있지만 값의 종류가 적고, 이 미션의 핵심 조회는 날짜 범위와 최신순 정렬이다. 고객명이나 메뉴명 검색을 자주 하는 요구가 생기면 그때 별도 인덱스를 검토할 수 있다.
 

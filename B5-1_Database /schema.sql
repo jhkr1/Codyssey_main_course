@@ -72,7 +72,3 @@ CREATE TABLE order_detail (
   CONSTRAINT chk_order_detail_unit_price
     CHECK (unit_price > 0)
 ) ENGINE=InnoDB;
-
--- 주문 내역 조회와 기간별 매출 집계는 주문 시각으로 검색하거나 정렬하는 일이 많다.
--- 따라서 ordered_at 컬럼에 인덱스를 둔다.
-CREATE INDEX idx_cafe_order_ordered_at ON cafe_order(ordered_at);

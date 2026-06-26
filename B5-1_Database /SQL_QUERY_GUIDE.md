@@ -540,146 +540,52 @@ unit_price = 4500.00
 line_total = 9000.00
 ```
 
-## 8. 쿼리 07: 완료된 주문의 상세 내역 조회
+## 8. 쿼리 07: 메뉴 목록에 카테고리명 붙이기
 
 ```sql
-SELECT c.name AS customer_name, mc.name AS category_name, mi.name AS menu_name,
-       od.quantity, od.quantity * od.unit_price AS line_total
-FROM order_detail AS od
-INNER JOIN cafe_order AS o ON od.order_id = o.order_id
-INNER JOIN customer AS c ON o.customer_id = c.customer_id
-INNER JOIN menu_item AS mi ON od.menu_item_id = mi.menu_item_id
+SELECT mi.menu_item_id, mi.name AS menu_name, mc.name AS category_name, mi.price
+FROM menu_item AS mi
 INNER JOIN menu_category AS mc ON mi.category_id = mc.category_id
-WHERE o.order_status = 'COMPLETED'
-ORDER BY c.name, mi.name;
+ORDER BY mi.menu_item_id;
 ```
 
-이 쿼리는 여러 테이블을 연결하는 대표 예시이다. 주문 상세에서 시작해 주문, 고객, 메뉴, 카테고리까지 연결한다.
+이 쿼리는 메뉴 목록을 보여 주면서, 메뉴가 속한 카테고리 이름도 함께 보여 준다.
 
-연결 흐름은 다음과 같다.
+`menu_item`에는 `category_id`만 저장되어 있다. 카테고리 이름은 `menu_category` 테이블에 있다. 그래서 두 테이블을 `category_id` 기준으로 연결한다.
 
 ```text
-order_detail -> cafe_order -> customer
-order_detail -> menu_item -> menu_category
+mi.category_id = mc.category_id
 ```
 
-이 표현은 논리적인 결과 테이블이 두 개 만들어진다는 뜻이 아니다. `order_detail`을 중심으로 두 방향의 정보를 가져온다는 뜻이다.
+이 조건은 메뉴 테이블의 카테고리 번호와 카테고리 테이블의 카테고리 번호가 같은 행끼리 붙이라는 뜻이다.
 
 ```text
-주문/고객 정보 방향
-order_detail -> cafe_order -> customer
+menu_item                         menu_category
++--------------+-------------+    +-------------+--------+
+| name         | category_id |    | category_id | name   |
++--------------+-------------+    +-------------+--------+
+| Americano    | 1           | -> | 1           | Coffee |
+| Cheesecake   | 3           | -> | 3           | Dessert|
++--------------+-------------+    +-------------+--------+
 
-메뉴/카테고리 정보 방향
-order_detail -> menu_item -> menu_category
+결과
++--------------+------------+---------------+---------+
+| menu_item_id | menu_name  | category_name | price   |
++--------------+------------+---------------+---------+
+| 1            | Americano  | Coffee        | 4500.00 |
+| 7            | Cheesecake | Dessert       | 6800.00 |
++--------------+------------+---------------+---------+
 ```
 
-실제로는 `order_detail`에서 시작한 하나의 중간 결과가 JOIN을 만날 때마다 옆으로 넓어진다.
+이 쿼리의 핵심은 "ID만 저장된 곳에 이름을 붙인다"이다. 테이블을 나누어 저장하면 메뉴 테이블에 카테고리명을 반복해서 적지 않아도 되고, 필요할 때 JOIN으로 카테고리명을 가져올 수 있다.
 
-```text
-order_detail
-    |
-    | JOIN cafe_order
-    v
-order_detail + cafe_order
-    |
-    | JOIN customer
-    v
-order_detail + cafe_order + customer
-    |
-    | JOIN menu_item
-    v
-order_detail + cafe_order + customer + menu_item
-    |
-    | JOIN menu_category
-    v
-order_detail + cafe_order + customer + menu_item + menu_category
-```
+JOIN을 읽을 때는 다음 세 가지만 먼저 보면 된다.
 
-따라서 이 쿼리의 실행 흐름은 "두 테이블을 따로 만든 뒤 합치는 방식"이 아니라, "하나의 중간 결과에 필요한 컬럼을 계속 붙이는 방식"으로 이해하면 된다.
-
-`WHERE o.order_status = 'COMPLETED'`는 완료된 주문만 남긴다. 취소되었거나 아직 처리 중인 주문은 제외한다.
-
-이 쿼리를 이해하면 정규화된 테이블을 다시 조합하는 감각을 익힐 수 있다.
-
-시각화하면 다음과 같다.
-
-1단계: 주문 상세에서 시작한다.
-
-```text
-order_detail
-+-----------+----------+--------------+-----+
-| detail_id | order_id | menu_item_id | qty |
-+-----------+----------+--------------+-----+
-| 1         | 1        | 2            | 2   |
-| 2         | 1        | 5            | 1   |
-+-----------+----------+--------------+-----+
-```
-
-2단계: 주문 상세에 주문 정보를 붙인다.
-
-```text
-order_detail.order_id = cafe_order.order_id
-
-+-----------+----------+--------------+-----+-----------+-------------+
-| detail_id | order_id | menu_item_id | qty | status    | customer_id |
-+-----------+----------+--------------+-----+-----------+-------------+
-| 1         | 1        | 2            | 2   | COMPLETED | 1           |
-| 2         | 1        | 5            | 1   | COMPLETED | 1           |
-+-----------+----------+--------------+-----+-----------+-------------+
-```
-
-3단계: customer_id로 고객 이름을 붙인다.
-
-```text
-cafe_order.customer_id = customer.customer_id
-
-+-----------+---------------+--------------+-----+
-| detail_id | customer_name | menu_item_id | qty |
-+-----------+---------------+--------------+-----+
-| 1         | 김민준        | 2            | 2   |
-| 2         | 김민준        | 5            | 1   |
-+-----------+---------------+--------------+-----+
-```
-
-4단계: menu_item_id로 메뉴명, category_id로 카테고리명을 붙인다.
-
-```text
-order_detail.menu_item_id = menu_item.menu_item_id
-menu_item.category_id = menu_category.category_id
-
-+---------------+----------+------------+-----+------------+
-| customer_name | category | menu_name  | qty | line_total |
-+---------------+----------+------------+-----+------------+
-| 김민준        | Coffee   | 카페라떼   | 2   | 9000.00    |
-| 김민준        | Dessert  | 치즈케이크 | 1   | 6500.00    |
-+---------------+----------+------------+-----+------------+
-```
-
-이 쿼리는 한 번에 많은 테이블을 붙이지만, 실제로는 "주문 상세에 필요한 이름표를 하나씩 붙이는 과정"이다. `WHERE`는 그중 완료된 주문만 남기는 필터 역할을 한다.
-
-여러 테이블 JOIN을 읽을 때는 `SELECT`에 나온 컬럼이 어느 테이블에서 왔는지 표시해 보면 훨씬 쉬워진다.
-
-| 결과 컬럼 | 원래 위치 | 가져오는 방법 |
-| --- | --- | --- |
-| `customer_name` | `customer.name` | `cafe_order.customer_id`로 고객을 찾는다. |
-| `category_name` | `menu_category.name` | `menu_item.category_id`로 카테고리를 찾는다. |
-| `menu_name` | `menu_item.name` | `order_detail.menu_item_id`로 메뉴를 찾는다. |
-| `quantity` | `order_detail.quantity` | 시작 테이블에 이미 있다. |
-| `line_total` | 계산 결과 | 수량과 단가를 곱한다. |
-
-이처럼 정규화된 데이터베이스에서는 한 화면에 필요한 값이 여러 테이블에 흩어져 있는 경우가 많다. JOIN은 흩어진 값을 "보고 싶은 결과표" 모양으로 다시 조립하는 도구이다.
-
-```text
-주문 상세 한 줄
-    |
-    +-- 주문 정보에서 주문 상태와 고객 ID를 얻음
-    |       |
-    |       +-- 고객 테이블에서 고객 이름을 얻음
-    |
-    +-- 메뉴 테이블에서 메뉴 이름과 카테고리 ID를 얻음
-            |
-            +-- 카테고리 테이블에서 카테고리 이름을 얻음
-```
+| 확인할 것 | 이 쿼리의 답 |
+| --- | --- |
+| 기준 테이블 | `menu_item AS mi` |
+| 붙이는 테이블 | `menu_category AS mc` |
+| 연결 조건 | `mi.category_id = mc.category_id` |
 
 ## 9. 쿼리 08: 주문이 없는 고객까지 포함한 주문 수 조회
 
@@ -908,7 +814,7 @@ JOIN은 결제수단과 주문 상세 금액을 한 줄로 모으는 역할을 �
 | --- | --- | --- |
 | `COUNT()` | 행 개수를 센다. | 주문 수, 고객 수 |
 | `SUM()` | 숫자 값을 모두 더한다. | 매출 합계 |
-| `AVG()` | 숫자 값의 평균을 구한다. | 평균 주문 금액 |
+| `AVG()` | 숫자 값의 평균을 구한다. | 평균 메뉴 가격 |
 | `MIN()` | 가장 작은 값을 구한다. | 가장 낮은 메뉴 가격 |
 | `MAX()` | 가장 큰 값을 구한다. | 가장 비싼 메뉴 가격 |
 
@@ -924,141 +830,67 @@ MOBILE 그룹
 
 `WHERE o.order_status <> 'CANCELED'`가 `GROUP BY`보다 앞에서 적용되기 때문에, 취소 주문의 상세 금액은 애초에 그룹에 들어가지 않는다.
 
-## 12. 쿼리 11: 고객별 평균 주문 금액
+## 12. 쿼리 11: 카테고리별 평균 메뉴 가격
 
 ```sql
-SELECT c.customer_id, c.name,
-       ROUND(AVG(order_totals.order_total), 2) AS average_order_amount
-FROM customer AS c
-INNER JOIN (
-  SELECT o.order_id, o.customer_id, SUM(od.quantity * od.unit_price) AS order_total
-  FROM cafe_order AS o
-  INNER JOIN order_detail AS od ON o.order_id = od.order_id
-  WHERE o.order_status <> 'CANCELED'
-  GROUP BY o.order_id, o.customer_id
-) AS order_totals ON c.customer_id = order_totals.customer_id
-GROUP BY c.customer_id, c.name
-ORDER BY average_order_amount DESC;
+SELECT mc.name AS category_name, ROUND(AVG(mi.price), 2) AS average_menu_price
+FROM menu_category AS mc
+INNER JOIN menu_item AS mi ON mc.category_id = mi.category_id
+GROUP BY mc.category_id, mc.name
+ORDER BY average_menu_price DESC;
 ```
 
-이 쿼리는 고객별 평균 주문 금액을 구한다. 조금 길지만 두 단계로 나누면 이해하기 쉽다.
+이 쿼리는 카테고리별 평균 메뉴 가격을 구한다. `AVG()`를 처음 연습하기에 좋은 예시이다.
 
-첫 번째 단계는 서브쿼리이다.
+`menu_item`에는 메뉴 가격이 있고, `menu_category`에는 카테고리 이름이 있다. 그래서 두 테이블을 `category_id`로 연결한 뒤, 카테고리별로 묶어서 평균을 계산한다.
+
+읽는 순서는 다음과 같다.
 
 ```text
-주문별 총액을 먼저 구한다.
+1. FROM menu_category
+   카테고리 테이블에서 시작한다.
+
+2. INNER JOIN menu_item
+   각 카테고리에 속한 메뉴를 붙인다.
+
+3. GROUP BY mc.category_id, mc.name
+   같은 카테고리끼리 묶는다.
+
+4. AVG(mi.price)
+   각 카테고리 안의 메뉴 가격 평균을 구한다.
+
+5. ORDER BY average_menu_price DESC
+   평균 가격이 높은 카테고리부터 보여 준다.
 ```
 
-주문 하나에는 여러 주문 상세가 있을 수 있으므로, 먼저 `order_id`별로 `SUM(quantity * unit_price)`를 계산한다.
-
-두 번째 단계는 바깥 쿼리이다.
+예를 들어 Coffee 카테고리에 메뉴가 4개 있다.
 
 ```text
-주문별 총액을 고객별로 평균 낸다.
+Coffee 메뉴 가격
+Americano     4500.00
+Cafe Latte    5200.00
+Vanilla Latte 5800.00
+Cold Brew     5500.00
+
+AVG(price)
+(4500 + 5200 + 5800 + 5500) / 4 = 5250.00
 ```
 
-`AVG(order_totals.order_total)`은 고객이 가진 여러 주문 총액의 평균을 계산한다. `ROUND(..., 2)`는 소수점 둘째 자리까지 반올림한다.
-
-이 쿼리의 핵심은 “평균 주문 금액”을 바로 구하는 것이 아니라, 먼저 “주문 한 건의 총액”을 구한 뒤 평균을 낸다는 점이다.
-
-샘플 데이터에서는 `Kim Minjun`이 두 번 주문했다. 주문 1번 총액은 `12200.00`, 주문 6번 총액은 `11000.00`이므로 평균 주문 금액은 `11600.00`이다.
+결과는 다음처럼 "카테고리 이름 + 평균 가격" 모양으로 나온다.
 
 ```text
-Kim Minjun의 주문 총액
-주문 1번: 12200.00
-주문 6번: 11000.00
-
-AVG(order_total)
-(12200.00 + 11000.00) / 2 = 11600.00
++---------------+--------------------+
+| category_name | average_menu_price |
++---------------+--------------------+
+| Sandwich      | 7600.00            |
+| Seasonal      | 6500.00            |
+| Non Coffee    | 5750.00            |
+| Coffee        | 5250.00            |
+| Dessert       | 5000.00            |
++---------------+--------------------+
 ```
 
-전체 결과를 보면 평균은 주문 상세 한 줄의 평균이 아니라, 주문 한 건 총액들의 평균이라는 점이 드러난다.
-
-```text
-+-------------+-------------+----------------------+
-| customer_id | name        | average_order_amount |
-+-------------+-------------+----------------------+
-| 2           | Lee Seoyeon | 18800.00             |
-| 1           | Kim Minjun  | 11600.00             |
-| 9           | Han Jisoo   | 10400.00             |
-| 4           | Choi Yuna   | 7600.00              |
-| 8           | Lim Siwoo   | 6800.00              |
-| 3           | Park Jiho   | 5800.00              |
-| 6           | Kang Doyun  | 5600.00              |
-| 7           | Yoon Harin  | 4500.00              |
-+-------------+-------------+----------------------+
-```
-
-취소 주문만 가진 고객이나 주문이 없는 고객은 이 결과에 나오지 않는다. 바깥 쿼리가 `customer`와 `order_totals`를 `INNER JOIN`으로 연결하기 때문에, 취소되지 않은 주문 총액이 있는 고객만 남는다.
-
-아래는 일부 데이터로 계산 흐름을 단순화한 예시이다.
-
-```text
-1단계: 서브쿼리에서 주문별 총액을 만든다.
-
-cafe_order + order_detail
-+----------+-------------+----------+------------+------------+
-| order_id | customer_id | quantity | unit_price | line_total |
-+----------+-------------+----------+------------+------------+
-| 1        | 1           | 2        | 4500.00    | 9000.00    |
-| 1        | 1           | 1        | 3200.00    | 3200.00    |
-| 6        | 1           | 2        | 5500.00    | 11000.00   |
-| 2        | 2           | 1        | 5200.00    | 5200.00    |
-| 2        | 2           | 2        | 6800.00    | 13600.00   |
-+----------+-------------+----------+------------+------------+
-
-서브쿼리 결과 order_totals
-+----------+-------------+-------------+
-| order_id | customer_id | order_total |
-+----------+-------------+-------------+
-| 1        | 1           | 12200.00    |
-| 6        | 1           | 11000.00    |
-| 2        | 2           | 18800.00    |
-+----------+-------------+-------------+
-
-2단계: 바깥 쿼리에서 customer와 order_totals를 연결해 고객 이름을 붙인다.
-
-+-------------+-------------+-------------+
-| customer_id | name        | order_total |
-+-------------+-------------+-------------+
-| 1           | Kim Minjun  | 12200.00    |
-| 1           | Kim Minjun  | 11000.00    |
-| 2           | Lee Seoyeon | 18800.00    |
-+-------------+-------------+-------------+
-
-3단계: 고객별 평균 주문 금액을 계산한다.
-
-+-------------+-------------+----------------------+
-| customer_id | name        | average_order_amount |
-+-------------+-------------+----------------------+
-| 1           | Kim Minjun  | 11600.00             |
-| 2           | Lee Seoyeon | 18800.00             |
-+-------------+-------------+----------------------+
-```
-
-이 쿼리에서 서브쿼리는 임시 결과표처럼 생각하면 된다. 먼저 주문별 총액표를 만들고, 그 표를 다시 고객 테이블과 JOIN해서 고객 이름을 붙인다.
-
-여기서 서브쿼리를 쓰는 이유는 계산 단위가 두 번 바뀌기 때문이다.
-
-```text
-1차 계산 단위: 주문 상세 행
-quantity * unit_price로 줄 금액을 구한다.
-
-2차 계산 단위: 주문 한 건
-order_id별로 줄 금액을 SUM해서 주문 총액을 구한다.
-
-3차 계산 단위: 고객 한 명
-고객별 여러 주문 총액을 AVG해서 평균 주문 금액을 구한다.
-```
-
-바로 `AVG(od.quantity * od.unit_price)`를 하면 "주문 상세 한 줄의 평균 금액"이 되어 버린다. 하지만 우리가 원하는 것은 "주문 한 건의 평균 금액"이다. 그래서 먼저 주문별 총액을 만든 뒤, 그 주문 총액들의 평균을 내야 한다.
-
-| 잘못 이해하기 쉬운 계산 | 실제 의미 |
-| --- | --- |
-| `AVG(quantity * unit_price)` | 주문 상세 한 줄의 평균 금액 |
-| `AVG(order_total)` | 주문 한 건 총액의 평균 |
-
-서브쿼리 `order_totals`는 이름 그대로 "주문별 총액표" 역할을 한다. 복잡한 쿼리에서는 중간 결과표에 좋은 이름을 붙이는 것만으로도 이해가 많이 쉬워진다.
+`COUNT()`는 개수를 세고, `SUM()`은 합계를 구하고, `AVG()`는 평균을 구한다. 이 쿼리에서는 `GROUP BY`로 카테고리별 묶음을 만든 뒤, 각 묶음 안에서 `AVG(mi.price)`를 계산한다.
 
 ## 13. 쿼리 12: 주문 이력이 없는 고객 찾기
 
@@ -1240,9 +1072,11 @@ order_id = 5를 참조하던 주문 상세도 함께 삭제
 
 이 설정은 부모 행이 사라질 때 자식 행을 어떻게 처리할지 정하는 FK 규칙이다. 이 프로젝트에서는 주문 상세가 주문 없이 의미를 갖기 어렵기 때문에, 주문 삭제 시 주문 상세도 함께 삭제되도록 설계했다.
 
-## 16. 쿼리 15: 인덱스 사용 계획 확인
+## 16. 쿼리 15: 인덱스 생성과 실행 계획 확인
 
 ```sql
+CREATE INDEX idx_cafe_order_ordered_at ON cafe_order(ordered_at);
+
 EXPLAIN
 SELECT order_id, customer_id, order_status, ordered_at
 FROM cafe_order
@@ -1250,11 +1084,19 @@ WHERE ordered_at >= '2026-03-04 00:00:00'
 ORDER BY ordered_at;
 ```
 
-이 쿼리는 실제 데이터를 조회하기보다 실행 계획을 확인한다.
+이 쿼리는 인덱스를 직접 만든 뒤, 실행 계획을 확인한다.
 
-`EXPLAIN`은 MySQL이 쿼리를 어떤 방식으로 실행할지 보여 준다. 이 프로젝트에서는 `ordered_at`에 인덱스를 만들었으므로, 날짜 조건과 정렬에서 인덱스가 사용될 수 있는지 확인한다.
+먼저 `CREATE INDEX`가 실행된다.
 
-`schema.sql`에서 직접 만든 성능용 인덱스는 `idx_cafe_order_ordered_at`이고, 대상 컬럼은 `cafe_order.ordered_at`이다. 이 쿼리가 바로 그 컬럼을 `WHERE`의 날짜 범위 조건과 `ORDER BY`의 정렬 기준으로 사용하므로, 인덱스 선택 이유가 가장 잘 드러난다.
+```sql
+CREATE INDEX idx_cafe_order_ordered_at ON cafe_order(ordered_at);
+```
+
+이 명령은 `cafe_order` 테이블의 `ordered_at` 컬럼에 인덱스를 만든다. 주문 목록은 날짜 조건으로 검색하거나 주문 시각순으로 정렬하는 일이 많기 때문에 `ordered_at`을 인덱스 대상으로 골랐다.
+
+그다음 `EXPLAIN`이 실행된다. `EXPLAIN`은 MySQL이 쿼리를 어떤 방식으로 실행할지 보여 준다. 여기서는 방금 만든 인덱스가 날짜 조건과 정렬에서 사용될 수 있는지 확인한다.
+
+이 쿼리가 바로 `ordered_at` 컬럼을 `WHERE`의 날짜 범위 조건과 `ORDER BY`의 정렬 기준으로 사용하므로, 인덱스 선택 이유가 가장 잘 드러난다.
 
 ```text
 WHERE ordered_at >= '2026-03-04 00:00:00'
@@ -1264,6 +1106,8 @@ ORDER BY ordered_at
 ```
 
 주문 ID나 고객 ID는 특정 한 건 또는 특정 고객의 주문을 찾을 때 유용하지만, 이 쿼리의 관심사는 "어느 시점 이후의 주문을 시간순으로 읽기"이다. 그래서 `ordered_at`이 인덱스 대상이 된다.
+
+주의할 점은 같은 이름의 인덱스를 두 번 만들 수 없다는 것이다. 15번 쿼리를 다시 실행하고 싶다면 먼저 `schema.sql`과 `sample_data.sql`을 다시 실행해 데이터베이스를 처음 상태로 되돌린 뒤 실행한다.
 
 실행 계획에서 볼 수 있는 대표 항목은 다음과 같다.
 
@@ -1408,7 +1252,52 @@ JOIN과 서브쿼리를 비교하면 다음과 같다.
 
 이 예시에서는 `menu_category.name`을 결과에 보여 주지 않으므로 서브쿼리도 깔끔하다. 반대로 결과에 `mc.name`이나 `mc.description`까지 보여 주고 싶다면 JOIN 방식이 더 자연스럽다.
 
-## 19. 보너스 C: FK 무결성 테스트
+## 19. 참고: UNION과 FULL OUTER JOIN의 차이
+
+`FULL OUTER JOIN`과 `UNION`은 둘 다 결과를 합치는 것처럼 보이지만, 합치는 방향이 다르다.
+
+| 구분 | FULL OUTER JOIN | UNION |
+| --- | --- | --- |
+| 합치는 방향 | 두 테이블을 옆으로 붙인다. | 두 SELECT 결과를 아래로 이어 붙인다. |
+| 기준 | `ON` 조건으로 행끼리 연결한다. | 두 SELECT의 컬럼 개수와 타입이 맞아야 한다. |
+| 결과 | 양쪽 테이블 컬럼이 함께 나온다. | 하나의 SELECT 결과 모양으로 나온다. |
+| 매칭 안 되는 행 | 반대쪽 컬럼을 `NULL`로 채워 남긴다. | 매칭 개념이 없다. |
+
+`FULL OUTER JOIN`은 다음처럼 관계 있는 데이터를 한 줄로 연결한다.
+
+```text
+customer + cafe_order
+
++-------------+--------+----------+
+| customer_id | name   | order_id |
++-------------+--------+----------+
+| 1           | 김민준 | 101      |
+| 2           | 이서연 | NULL     |
+| NULL        | NULL   | 102      |
++-------------+--------+----------+
+```
+
+`UNION`은 두 결과 목록을 아래로 합친다.
+
+```sql
+SELECT customer_id FROM customer
+UNION
+SELECT customer_id FROM cafe_order;
+```
+
+```text
++-------------+
+| customer_id |
++-------------+
+| 1           |
+| 2           |
+| 999         |
++-------------+
+```
+
+MySQL은 `FULL OUTER JOIN`을 직접 지원하지 않는다. 그래서 필요한 경우에는 `LEFT JOIN` 결과와 `RIGHT JOIN` 결과를 `UNION`으로 합쳐 비슷하게 표현한다. 이때 `UNION`은 조인 자체가 아니라, 두 조인 결과를 세로로 합치는 도구로 쓰인다.
+
+## 20. 보너스 C: FK 무결성 테스트
 
 ```sql
 -- INSERT INTO cafe_order (customer_id, order_status, ordered_at, payment_method)
@@ -1440,7 +1329,7 @@ INSERT 거부
 
 이런 규칙이 없으면 주문은 저장되지만 고객 정보를 찾을 수 없는 어색한 데이터가 남는다. FK는 애플리케이션 코드가 실수하더라도 데이터베이스 안의 관계가 끊어지지 않게 막아 주는 안전장치이다.
 
-## 20. 쿼리 읽기 순서
+## 21. 쿼리 읽기 순서
 
 긴 SQL은 한 번에 이해하려고 하면 어렵다. 다음 순서로 읽으면 쿼리의 구조가 더 분명해진다.
 

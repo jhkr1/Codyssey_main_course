@@ -40,16 +40,11 @@ FROM order_detail AS od
 INNER JOIN menu_item AS mi ON od.menu_item_id = mi.menu_item_id
 ORDER BY od.order_detail_id;
 
--- 07. 여러 테이블 JOIN: 완료된 주문의 고객, 카테고리, 메뉴 정보를 함께 조회한다.
-SELECT c.name AS customer_name, mc.name AS category_name, mi.name AS menu_name,
-       od.quantity, od.quantity * od.unit_price AS line_total
-FROM order_detail AS od
-INNER JOIN cafe_order AS o ON od.order_id = o.order_id
-INNER JOIN customer AS c ON o.customer_id = c.customer_id
-INNER JOIN menu_item AS mi ON od.menu_item_id = mi.menu_item_id
+-- 07. INNER JOIN: 메뉴 목록에 카테고리명을 함께 표시한다.
+SELECT mi.menu_item_id, mi.name AS menu_name, mc.name AS category_name, mi.price
+FROM menu_item AS mi
 INNER JOIN menu_category AS mc ON mi.category_id = mc.category_id
-WHERE o.order_status = 'COMPLETED'
-ORDER BY c.name, mi.name;
+ORDER BY mi.menu_item_id;
 
 -- 08. LEFT JOIN: 주문이 없는 고객까지 포함하여 고객별 주문 수를 조회한다.
 SELECT c.customer_id, c.name, COUNT(o.order_id) AS order_count
@@ -72,19 +67,12 @@ WHERE o.order_status <> 'CANCELED'
 GROUP BY o.payment_method
 ORDER BY total_sales DESC;
 
--- 11. AVG 집계: 고객별 평균 주문 금액을 계산한다.
-SELECT c.customer_id, c.name,
-       ROUND(AVG(order_totals.order_total), 2) AS average_order_amount
-FROM customer AS c
-INNER JOIN (
-  SELECT o.order_id, o.customer_id, SUM(od.quantity * od.unit_price) AS order_total
-  FROM cafe_order AS o
-  INNER JOIN order_detail AS od ON o.order_id = od.order_id
-  WHERE o.order_status <> 'CANCELED'
-  GROUP BY o.order_id, o.customer_id
-) AS order_totals ON c.customer_id = order_totals.customer_id
-GROUP BY c.customer_id, c.name
-ORDER BY average_order_amount DESC;
+-- 11. AVG 집계: 카테고리별 평균 메뉴 가격을 계산한다.
+SELECT mc.name AS category_name, ROUND(AVG(mi.price), 2) AS average_menu_price
+FROM menu_category AS mc
+INNER JOIN menu_item AS mi ON mc.category_id = mi.category_id
+GROUP BY mc.category_id, mc.name
+ORDER BY average_menu_price DESC;
 
 -- 12. 서브쿼리: 주문 이력이 없는 고객을 조회한다.
 SELECT customer_id, name, email
@@ -116,7 +104,9 @@ SELECT COUNT(*) AS remaining_order_detail_rows
 FROM order_detail
 WHERE order_id = 5;
 
--- 15. 인덱스 확인: 날짜 조건과 정렬에서 ordered_at 인덱스 사용 가능성을 확인한다.
+-- 15. 인덱스 생성과 확인: 주문 시각 검색/정렬을 빠르게 하기 위해 ordered_at에 인덱스를 만든다.
+CREATE INDEX idx_cafe_order_ordered_at ON cafe_order(ordered_at);
+
 EXPLAIN
 SELECT order_id, customer_id, order_status, ordered_at
 FROM cafe_order

@@ -29,7 +29,7 @@
 | 파일 | 역할 |
 | --- | --- |
 | `docker-compose.yml` | MySQL 8.4 컨테이너를 실행하기 위한 설정 파일이다. |
-| `schema.sql` | 데이터베이스, 테이블, 제약조건, 인덱스를 생성한다. |
+| `schema.sql` | 데이터베이스, 테이블, 제약조건을 생성한다. |
 | `sample_data.sql` | 실습에 사용할 고객, 메뉴, 주문, 주문 상세 데이터를 입력한다. |
 | `queries.sql` | 미션에서 확인할 핵심 SQL 쿼리를 모아 둔 파일이다. |
 | `DATABASE_STUDY.md` | 관계형 데이터베이스 개념을 책처럼 정리한 학습 문서이다. |
@@ -58,6 +58,58 @@
 | `customer` 1:N `cafe_order` | 한 고객은 여러 번 주문할 수 있다. |
 | `cafe_order` 1:N `order_detail` | 하나의 주문에는 여러 메뉴가 들어갈 수 있다. |
 | `menu_item` 1:N `order_detail` | 하나의 메뉴는 여러 주문 상세에 등장할 수 있다. |
+
+ERD로 보면 다음과 같다.
+
+![카페 주문 데이터베이스 ERD](./images/erd-diagram.png)
+
+아래 Mermaid 다이어그램은 이미지와 같은 관계를 코드로 표현한 것이다.
+
+```mermaid
+erDiagram
+  customer ||--o{ cafe_order : places
+  menu_category ||--o{ menu_item : contains
+  cafe_order ||--o{ order_detail : has
+  menu_item ||--o{ order_detail : ordered_as
+
+  customer {
+    BIGINT customer_id PK
+    VARCHAR name
+    VARCHAR email UK
+    VARCHAR phone UK
+    DATETIME joined_at
+  }
+
+  menu_category {
+    BIGINT category_id PK
+    VARCHAR name UK
+    VARCHAR description
+  }
+
+  menu_item {
+    BIGINT menu_item_id PK
+    BIGINT category_id FK
+    VARCHAR name UK
+    DECIMAL price
+    BOOLEAN is_available
+  }
+
+  cafe_order {
+    BIGINT order_id PK
+    BIGINT customer_id FK
+    ENUM order_status
+    DATETIME ordered_at
+    ENUM payment_method
+  }
+
+  order_detail {
+    BIGINT order_detail_id PK
+    BIGINT order_id FK
+    BIGINT menu_item_id FK
+    INT quantity
+    DECIMAL unit_price
+  }
+```
 
 ## 4. 실행 준비
 
@@ -105,7 +157,7 @@ docker ps
 docker exec -i cafe-order-mysql mysql -u root -prootpass < schema.sql
 ```
 
-이 명령은 `schema.sql`을 MySQL에 전달한다. 그 결과 `cafe_order_db` 데이터베이스가 생성되고, 5개의 테이블과 인덱스가 만들어진다.
+이 명령은 `schema.sql`을 MySQL에 전달한다. 그 결과 `cafe_order_db` 데이터베이스가 생성되고, 5개의 테이블과 제약조건이 만들어진다. 인덱스는 `queries.sql`의 15번 쿼리에서 직접 생성하고 실행 계획으로 확인한다.
 
 터미널에 다음 경고가 보일 수 있다.
 

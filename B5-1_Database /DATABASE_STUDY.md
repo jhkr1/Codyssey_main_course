@@ -65,6 +65,48 @@ customer_id BIGINT AUTO_INCREMENT PRIMARY KEY
 
 정리하면 PK는 테이블의 각 행을 정확히 구분하기 위한 값이다. 같은 이름이나 같은 속성이 반복될 수 있으므로, 이 프로젝트에서는 `customer_id`, `menu_item_id` 같은 별도의 ID를 기본키로 두었다.
 
+## 4.1 슈퍼키, 후보키, 기본키
+
+키를 조금 더 정확히 나누면 슈퍼키, 후보키, 기본키라는 말이 나온다. 처음에는 이름이 비슷해서 헷갈리지만, 핵심은 "한 행을 유일하게 찾을 수 있는가"와 "그중 최소한의 컬럼인가"이다.
+
+| 용어 | 의미 | 예시 |
+| --- | --- | --- |
+| 슈퍼키 | 한 행을 유일하게 식별할 수 있는 컬럼 또는 컬럼 조합 | `customer_id`, `email`, `customer_id + email` |
+| 후보키 | 슈퍼키 중에서 불필요한 컬럼을 뺄 수 없는 최소 식별자 | `customer_id`, `email` |
+| 기본키 | 후보키 중 테이블의 대표 식별자로 선택한 키 | `customer_id` |
+| 대체키 | 후보키였지만 기본키로 선택되지 않은 키 | `email` |
+
+예를 들어 `customer` 테이블에서 `customer_id`는 고객 한 명을 정확히 찾을 수 있으므로 슈퍼키이다. `email`도 `UNIQUE`가 걸려 있으므로 고객 한 명을 정확히 찾을 수 있다면 슈퍼키가 될 수 있다.
+
+```text
+customer_id
+-> 고객 한 명을 찾을 수 있음
+-> 슈퍼키
+-> 더 뺄 컬럼이 없으므로 후보키
+-> 이 프로젝트에서 대표 식별자로 선택했으므로 기본키
+
+email
+-> 고객 한 명을 찾을 수 있음
+-> 슈퍼키
+-> 더 뺄 컬럼이 없으므로 후보키
+-> 기본키로 선택하지 않았으므로 대체키
+
+customer_id + email
+-> 고객 한 명을 찾을 수 있음
+-> 슈퍼키
+-> 하지만 customer_id만으로도 충분하므로 후보키는 아님
+```
+
+후보키는 "기본키 후보"라고 생각하면 쉽다. 후보키가 여러 개 있을 수 있고, 그중 하나를 기본키로 고른다. 이 프로젝트에서는 이메일도 고객을 구분할 수 있지만, 이메일은 실제 서비스에서 바뀔 수 있다. 그래서 변할 가능성이 낮고 조인에 쓰기 쉬운 숫자 ID인 `customer_id`를 기본키로 선택했다.
+
+정리하면 다음과 같다.
+
+```text
+슈퍼키: 유일하게 찾을 수 있으면 됨
+후보키: 유일하게 찾을 수 있고, 더 줄일 수 없어야 함
+기본키: 후보키 중 대표로 선택한 것
+```
+
 ## 5장. FK: 테이블 사이를 연결하는 값
 
 FK는 Foreign Key의 줄임말이며 외래키라고 부른다. 외래키는 다른 테이블의 기본키를 참조하는 컬럼이다.
@@ -623,6 +665,56 @@ FROM customer AS c
 RIGHT JOIN cafe_order AS o ON c.customer_id = o.customer_id;
 ```
 
+여기서 `UNION`은 `FULL OUTER JOIN`과 같은 종류의 조인이 아니다. 둘은 데이터를 합치는 방향이 다르다.
+
+| 구분 | FULL OUTER JOIN | UNION |
+| --- | --- | --- |
+| 합치는 방향 | 두 테이블을 옆으로 붙인다. | 두 SELECT 결과를 아래로 이어 붙인다. |
+| 기준 | `ON` 조건으로 행끼리 매칭한다. | 두 SELECT의 컬럼 개수와 타입이 맞아야 한다. |
+| 결과 모양 | 왼쪽 테이블 컬럼 + 오른쪽 테이블 컬럼 | 첫 번째 SELECT 결과 형식 하나 |
+| 미매칭 데이터 | 반대쪽 컬럼을 `NULL`로 채워 남긴다. | 매칭이라는 개념이 없다. |
+| 중복 처리 | 조인 결과를 그대로 보여 준다. | `UNION`은 중복 제거, `UNION ALL`은 중복 유지 |
+
+예를 들어 `FULL OUTER JOIN`은 고객과 주문을 `customer_id` 기준으로 한 줄에 붙인다.
+
+```text
+FULL OUTER JOIN
+customer 컬럼 + cafe_order 컬럼
+
++-------------+--------+----------+
+| customer_id | name   | order_id |
++-------------+--------+----------+
+| 1           | 김민준 | 101      |
+| 2           | 이서연 | NULL     |
+| NULL        | NULL   | 102      |
++-------------+--------+----------+
+```
+
+반면 `UNION`은 두 결과를 같은 컬럼 모양으로 맞춘 뒤 아래로 합친다.
+
+```sql
+SELECT customer_id
+FROM customer
+UNION
+SELECT customer_id
+FROM cafe_order;
+```
+
+```text
+UNION
+customer_id 목록 + customer_id 목록
+
++-------------+
+| customer_id |
++-------------+
+| 1           |
+| 2           |
+| 999         |
++-------------+
+```
+
+따라서 MySQL에서 `LEFT JOIN ... UNION ... RIGHT JOIN`을 쓰는 것은 `UNION`이 `FULL OUTER JOIN`과 같아서가 아니다. `LEFT JOIN` 결과와 `RIGHT JOIN` 결과를 세로로 합쳐서, 결과적으로 양쪽 미매칭 행을 모두 보이게 만드는 우회 방법이다.
+
 다만 이 프로젝트의 데이터 구조에서는 주문이 반드시 존재하는 고객을 참조하도록 FK가 걸려 있으므로, 고객 없이 주문만 존재하는 경우는 원칙적으로 생기지 않는다. 그래서 이 미션에서 `FULL OUTER JOIN`은 실무 쿼리로 자주 쓰기보다, `LEFT JOIN`과 `RIGHT JOIN`의 차이를 이해하기 위한 개념으로 보면 충분하다.
 
 ## 13.6 CROSS JOIN
@@ -823,7 +915,7 @@ WHERE order_id = 5 AND order_status = 'CANCELED';
 
 인덱스는 데이터를 더 빨리 찾기 위한 자료구조이다. 책의 찾아보기처럼, 테이블 전체를 처음부터 끝까지 읽지 않고 필요한 위치를 빠르게 찾도록 돕는다.
 
-이 프로젝트에서는 주문일 기준 조회와 정렬이 자주 일어난다고 보고 `ordered_at`에 인덱스를 만들었다.
+이 프로젝트에서는 주문일 기준 조회와 정렬이 자주 일어난다고 보고 `queries.sql`의 15번 쿼리에서 `ordered_at`에 인덱스를 만든다.
 
 ```sql
 CREATE INDEX idx_cafe_order_ordered_at ON cafe_order(ordered_at);
@@ -835,7 +927,7 @@ CREATE INDEX idx_cafe_order_ordered_at ON cafe_order(ordered_at);
 | --- | --- |
 | `cafe_order.ordered_at` | 최근 주문 정렬, 기간별 주문 조회, 날짜 조건 검색에 자주 쓰인다. |
 
-PK와 `UNIQUE` 제약조건이 붙은 컬럼은 MySQL이 내부적으로 인덱스를 만든다. 예를 들어 `customer_id` 같은 기본키나 `email` 같은 유니크 컬럼은 이미 고유성 검사를 위해 인덱스가 사용된다. 이 미션에서 따로 `CREATE INDEX`로 만든 것은 날짜 조회와 정렬을 위한 `idx_cafe_order_ordered_at`이다.
+PK와 `UNIQUE` 제약조건이 붙은 컬럼은 MySQL이 내부적으로 인덱스를 만든다. 예를 들어 `customer_id` 같은 기본키나 `email` 같은 유니크 컬럼은 이미 고유성 검사를 위해 인덱스가 사용된다. 이 미션에서 실습 쿼리로 직접 `CREATE INDEX`를 작성하는 대상은 날짜 조회와 정렬을 위한 `idx_cafe_order_ordered_at`이다.
 
 인덱스는 조회 성능에 도움을 줄 수 있지만 공짜는 아니다. 데이터를 추가, 수정, 삭제할 때 인덱스도 함께 갱신해야 하며 저장 공간도 사용한다. 따라서 자주 검색, 정렬, 조인에 쓰이는 컬럼을 중심으로 신중하게 만든다.
 
