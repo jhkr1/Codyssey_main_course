@@ -145,7 +145,6 @@ rootpass
 SHOW DATABASES;
 USE cafe_order_db;
 SHOW TABLES;
-DESC customer;
 SELECT COUNT(*) FROM customer;
 ```
 
@@ -155,7 +154,63 @@ MySQL에서 나가려면 다음 명령 중 하나를 입력한다.
 exit;
 ```
 
-## 9. 쿼리 실행하기
+## 9. 테이블 하나씩 확인하기
+
+본격적으로 `queries.sql`의 쿼리를 실행하기 전에 테이블의 전체적인 형태를 먼저 확인한다. `DESC`는 테이블의 컬럼 구조를 보여 주고, `SELECT *`는 실제로 들어 있는 데이터를 보여 준다.
+
+먼저 고객 정보를 확인한다.
+
+```sql
+DESC customer;
+
+SELECT *
+FROM customer
+ORDER BY customer_id;
+```
+
+그다음 메뉴 카테고리를 확인한다.
+
+```sql
+DESC menu_category;
+
+SELECT *
+FROM menu_category
+ORDER BY category_id;
+```
+
+각 메뉴가 어떤 카테고리에 속하는지 확인한다.
+
+```sql
+DESC menu_item;
+
+SELECT *
+FROM menu_item
+ORDER BY menu_item_id;
+```
+
+주문 한 건마다 어떤 고객이 주문했는지 확인한다.
+
+```sql
+DESC cafe_order;
+
+SELECT *
+FROM cafe_order
+ORDER BY order_id;
+```
+
+마지막으로 주문 안에 어떤 메뉴가 몇 개씩 들어 있는지 확인한다.
+
+```sql
+DESC order_detail;
+
+SELECT *
+FROM order_detail
+ORDER BY order_detail_id;
+```
+
+이 5개 테이블을 먼저 보면 `customer_id`, `category_id`, `order_id`, `menu_item_id`가 테이블 사이를 어떻게 연결하는지 감을 잡기 쉽다. 이후 JOIN 쿼리는 이 연결 컬럼을 기준으로 나뉘어 있던 데이터를 다시 붙여서 읽는 과정이다.
+
+## 10. 쿼리 실행하기
 
 `queries.sql`에 들어 있는 모든 쿼리를 한 번에 실행하려면 다음 명령을 사용한다.
 
@@ -165,7 +220,7 @@ docker exec -i cafe-order-mysql mysql -u root -prootpass --table cafe_order_db <
 
 각 쿼리의 의미를 이해하면서 공부하려면 [SQL_QUERY_GUIDE.md](./SQL_QUERY_GUIDE.md)를 함께 읽는다. 처음 공부할 때는 한 번에 모두 실행하기보다 MySQL에 접속한 뒤 쿼리를 하나씩 복사해서 실행하는 방식이 더 좋다. 결과가 왜 그렇게 나오는지 직접 확인할 수 있기 때문이다.
 
-## 10. 다시 처음부터 실행하기
+## 11. 다시 처음부터 실행하기
 
 `queries.sql`에는 `UPDATE`와 `DELETE`가 들어 있다. 따라서 한 번 실행한 뒤에는 일부 데이터가 바뀐다. 처음 상태로 되돌리고 싶다면 `schema.sql`과 `sample_data.sql`을 다시 실행한다.
 
@@ -181,17 +236,18 @@ docker compose down -v
 docker compose up -d
 ```
 
-## 11. 학습 순서
+## 12. 학습 순서
 
 처음 공부할 때는 다음 순서가 좋다.
 
 1. README를 따라 MySQL 컨테이너를 실행한다.
 2. [SCHEMA_GUIDE.md](./SCHEMA_GUIDE.md)를 보며 `schema.sql`의 테이블과 제약조건을 확인한다.
 3. `sample_data.sql`을 읽으며 어떤 데이터가 들어가는지 확인한다.
-4. [DATABASE_STUDY.md](./DATABASE_STUDY.md)를 읽으며 PK, FK, 정규화, JOIN, GROUP BY를 공부한다.
-5. [SQL_QUERY_GUIDE.md](./SQL_QUERY_GUIDE.md)를 보며 `queries.sql`을 한 쿼리씩 실행한다.
-6. 마지막으로 각 테이블과 쿼리가 어떤 문제를 해결하는지 스스로 정리한다.
+4. README의 테이블 확인 SQL로 5개 테이블의 구조와 데이터를 하나씩 살펴본다.
+5. [DATABASE_STUDY.md](./DATABASE_STUDY.md)를 읽으며 PK, FK, 정규화, JOIN, GROUP BY를 공부한다.
+6. [SQL_QUERY_GUIDE.md](./SQL_QUERY_GUIDE.md)를 보며 `queries.sql`을 한 쿼리씩 실행한다.
+7. 마지막으로 각 테이블과 쿼리가 어떤 문제를 해결하는지 스스로 정리한다.
 
-## 12. 한 문장으로 정리하기
+## 13. 한 문장으로 정리하기
 
 이 프로젝트는 카페 주문이라는 익숙한 상황을 이용하여, 관계형 데이터베이스가 데이터를 나누어 저장하고 다시 연결해 읽는 방식을 배우는 실습이다.
