@@ -8,26 +8,37 @@
 
 ## 재현 가이드 (실행 방법)
 
-이 프로젝트를 로컬 환경에서 실행하고 테스트하기 위한 방법입니다.
+이 프로젝트는 현재 디렉터리를 프로젝트 루트로 사용한다. 아래 명령은 `main.py`가 있는 위치에서 실행한다.
 
 ```bash
-# 1. 가상환경 생성
-python3 -m venv venv
+# 1. Python 버전 확인
+python3 --version
 
-# 2. 가상환경 활성화
+# 2. 가상환경 생성
+# Python 3.10 이상이 python3에 연결되어 있다면:
+python3 -m venv venv
+#
+# 만약 python3가 3.10 미만이라면, 설치된 실행 파일 이름에 맞춰 실행:
+# python3.10 -m venv venv
+
+# 3. 가상환경 활성화
 # (Mac/Linux)
 source venv/bin/activate
 # (Windows)
 # venv\Scripts\activate
 
-# 3. 필수 라이브러리 설치
-pip install -r requirements.txt
+# 4. 필수 라이브러리 설치
+python -m pip install -r requirements.txt
 
-# 4. 서버 기동
-uvicorn main:app --reload
+# 5. 서버 기동
+python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-서버가 기동되면 웹 브라우저에서 `http://127.0.0.1:8000/`로 접속하여 나의 메모 앱을 확인하실 수 있습니다.
+서버가 기동되면 웹 브라우저에서 `http://127.0.0.1:8000/` 또는 `http://localhost:8000/`로 접속하여 나의 메모 앱을 확인할 수 있다.
+
+주의: `templates/index.html` 같은 템플릿 파일을 브라우저에서 직접 열면 FastAPI/Jinja2 렌더링을 거치지 않는다. 앱 화면은 반드시 위 서버 주소로 접속해서 확인한다.
+
+서버가 처음 실행되면 SQLite DB 파일인 `memo.db`가 프로젝트 루트에 생성된다. 이 파일은 `.gitignore`의 `*.db` 규칙에 의해 Git에는 포함되지 않는다.
 
 ## 1장. 미션 개요
 본 미션은 FastAPI와 SQLAlchemy를 활용하여 웹 애플리케이션의 핵심 구성 요소를 직관적인 구조로 설계하는 프로젝트이다. 단순한 기능 구현을 넘어, 라우터, 서비스, 저장소로 역할을 분리하고 PRG 패턴과 ORM을 적용하여 유지보수가 가능한 웹 서비스를 구축하는 것을 목표로 한다.
@@ -58,37 +69,39 @@ uvicorn main:app --reload
 - **의존성 라이브러리**: `fastapi`, `uvicorn`, `sqlalchemy`, `jinja2`, `python-multipart`
 
 ### 실행 방법 (재현 가이드)
+실행 순서는 문서 상단의 **재현 가이드 (실행 방법)**를 따른다. 핵심은 Python 3.10 이상 가상환경을 만들고, `requirements.txt`를 설치한 뒤 다음 명령으로 서버를 실행하는 것이다.
+
 ```bash
-# 1. 가상환경 생성
-python3 -m venv venv
-
-# 2. 가상환경 활성화
-# (Mac/Linux)
-source venv/bin/activate
-# (Windows)
-# venv\Scripts\activate
-
-# 3. 필수 라이브러리 설치
-pip install -r requirements.txt
-
-# 4. 서버 기동
-uvicorn main:app --reload
+python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
-서버가 기동되면 웹 브라우저에서 `http://127.0.0.1:8000/`로 접속하여 확인할 수 있습니다.
-*(참고: `venv` 폴더는 `.gitignore`에 등록되어 있으므로 Git에 포함되지 않습니다.)*
+
+서버가 기동되면 웹 브라우저에서 `http://127.0.0.1:8000/`로 접속하여 확인할 수 있다.
+*(참고: `venv` 폴더와 `*.db` 파일은 `.gitignore`에 등록되어 있으므로 Git에 포함되지 않는다.)*
+
 ## 5장. 폴더 구조
 ```text
 project_root/
-├── app/
-│   ├── main.py            # 서버 실행 진입점
-│   ├── models/            # SQLAlchemy ORM 클래스
-│   ├── routers/           # 요청/응답 처리 (FastAPI Router)
-│   ├── services/          # 비즈니스 로직
-│   ├── repositories/      # 데이터베이스 접근 로직
-│   └── templates/         # Jinja2 HTML 파일
-├── database.db            # SQLite 데이터베이스 파일
+├── main.py                # FastAPI 애플리케이션 진입점
+├── database.py            # SQLite 연결, SessionLocal, get_db 정의
+├── models/
+│   └── memo.py            # SQLAlchemy ORM 모델
+├── routers/
+│   └── memo_router.py     # 요청/응답 처리
+├── services/
+│   └── memo_service.py    # 비즈니스 로직
+├── repositories/
+│   └── memo_repo.py       # DB 접근 로직
+├── templates/
+│   ├── base.html          # 공통 레이아웃
+│   ├── index.html         # 홈 화면
+│   ├── list.html          # 메모 목록
+│   ├── detail.html        # 메모 상세
+│   └── form.html          # 등록/수정 폼
 ├── requirements.txt       # 의존성 목록
-└── .env                   # 환경 변수 (필요 시)
+├── README.md              # 실행 방법과 프로젝트 설명
+├── CODE_EXPLANATION.md    # 코드 개념 설명
+├── DEEP_DIVE.md           # 확장 학습 문서
+└── memo.db                # 서버 실행 시 생성되는 SQLite DB 파일
 ```
 
 ## 6장. 레이어드 아키텍처의 흐름
