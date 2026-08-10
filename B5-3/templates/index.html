@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
+    {% if current_user %}
+        <h1>{{ current_user.username }}님, 환영합니다.</h1>
+        <p>프로젝트와 할 일을 관리하세요.</p>
+        <a class="button" href="/projects">프로젝트로 이동</a>
+    {% else %}
+        <h1>Project Task Manager</h1>
+        <p>프로젝트와 할 일의 진행 상태를 간단하게 관리하는 서비스입니다.</p>
+        <a class="button" href="/login">로그인</a>
+    {% endif %}
+{% endblock %}

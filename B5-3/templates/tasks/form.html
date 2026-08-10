@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Task 생성 | Project Task Manager{% endblock %}
+
+{% block content %}
+    <h1>{{ project.title }}에 Task 생성</h1>
+    <form action="/projects/{{ project.id }}/tasks" method="post">
+        <label for="title">제목</label>
+        <input id="title" name="title" required>
+
+        <label for="description">설명</label>
+        <textarea id="description" name="description" rows="5" required></textarea>
+
+        <button type="submit">생성</button>
+    </form>
+    <a href="/projects/{{ project.id }}">취소</a>
+{% endblock %}

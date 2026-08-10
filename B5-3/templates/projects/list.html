@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}프로젝트 | Project Task Manager{% endblock %}
+
+{% block content %}
+    <div class="actions">
+        <h1>내 프로젝트</h1>
+        <a class="button" href="/projects/new">프로젝트 생성</a>
+    </div>
+    {% if projects %}
+        <ul>
+        {% for project in projects %}
+            <li><a href="/projects/{{ project.id }}">{{ project.title }}</a> — {{ project.description }}</li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>아직 프로젝트가 없습니다.</p>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.title }} | Project Task Manager{% endblock %}
+
+{% block content %}
+    <h1>{{ project.title }}</h1>
+    <p>{{ project.description }}</p>
+    <p>소유자: {{ project.owner.username }}</p>
+
+    <div class="actions">
+        <a class="button" href="/projects/{{ project.id }}/tasks/new">Task 생성</a>
+        <form class="inline-form" action="/projects/{{ project.id }}/delete" method="post">
+            <button type="submit" class="danger">프로젝트 삭제</button>
+        </form>
+    </div>
+
+    <h2>Task 목록</h2>
+    {% if tasks %}
+        {% for task in tasks %}
+            <section class="task">
+                <strong>{{ task.title }}</strong>
+                <p>{{ task.description }}</p>
+                <p>상태: {{ task.status }}</p>
+                {% if task.status == "TODO" %}
+                    <form action="/tasks/{{ task.id }}/status" method="post">
+                        <input type="hidden" name="target_status" value="IN_PROGRESS">
+                        <button type="submit">진행 시작</button>
+                    </form>
+                {% elif task.status == "IN_PROGRESS" %}
+                    <form action="/tasks/{{ task.id }}/status" method="post">
+                        <input type="hidden" name="target_status" value="DONE">
+                        <button type="submit">완료하기</button>
+                    </form>
+                {% endif %}
+            </section>
+        {% endfor %}
+    {% else %}
+        <p>등록된 Task가 없습니다.</p>
+    {% endif %}
+
+    <p><a href="/projects">목록으로</a></p>
+{% endblock %}
