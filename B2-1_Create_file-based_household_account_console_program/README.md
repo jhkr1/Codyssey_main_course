@@ -298,7 +298,7 @@ def stream(self) -> Iterator[Transaction]:
 예시:
 
 ```python
-def parse_amount(value: Union[str, int]) -> int:
+def validate_amount(value: Union[str, int]) -> int:
     ...
 ```
 

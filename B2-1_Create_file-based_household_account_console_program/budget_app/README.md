@@ -158,6 +158,21 @@ data/
 
 JSONL은 한 줄에 하나의 JSON 객체를 저장하는 형식입니다. `transactions.jsonl`에는 ID, 날짜, 유형, 금액, 카테고리, 메모, 태그가 저장됩니다. `categories.jsonl`과 `budgets.jsonl`은 각각 카테고리와 월별 예산을 저장합니다.
 
+## 거래 조회와 generator
+
+거래 파일은 한 번에 모두 읽지 않습니다. `JsonlStore.iter_json()`이 JSONL 파일을 한 줄씩 읽어 JSON 문자열을 dict로 바꾸고, `TransactionRepository.stream()`이 그 dict를 `Transaction` 객체로 바꿔 한 건씩 반환합니다. 실제 파일 읽기는 `stream()`을 호출했을 때가 아니라, 그 결과를 `for`문 등으로 순회하기 시작할 때 실행됩니다.
+
+```text
+transactions.jsonl
+→ JsonlStore.iter_json()
+→ dict 한 건
+→ TransactionRepository.stream()
+→ Transaction 한 건
+→ Service
+```
+
+다만 파일을 한 줄씩 읽는 것과 결과 정렬은 별개의 일입니다. `summary`는 거래를 순회하며 합계만 누적하므로 거래 목록을 만들지 않습니다. 반면 `search`와 `export`는 최신순 결과를 만들기 위해 조건에 맞는 거래를 list에 모아 정렬합니다. `list`는 파일 전체를 확인하되, `heapq.nlargest()`로 최신 후보를 최대 `--limit`개만 유지합니다.
+
 ## CSV 형식
 
 CSV는 UTF-8 인코딩과 헤더 행을 사용합니다. `date`, `type`, `category`, `amount` 열은 필수이고 `memo`, `tags`는 선택입니다. `tags`는 쉼표로 구분합니다.
@@ -212,4 +227,5 @@ python -m budget_app --data-dir ./demo-data export --out demo-export.csv --month
 ## 학습 문서
 
 - [주요 Python·설계 개념](./CONCEPTS.md)
+- [실제 함수 호출 순서](./CODE_FLOW.md)
 - [코드 구조와 실행 흐름](./CODE_ARCHITECTURE.md)

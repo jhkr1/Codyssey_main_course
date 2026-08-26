@@ -19,7 +19,7 @@ python -m budget_app
   -> cli.py: run()  (@log_timing이 감싼 wrapper를 먼저 실행)
   -> build_parser() / parser.parse_args()
   -> build_services(args.data_dir)
-  -> args.command == "list" 분기
+  -> command_list(args, transaction_service)
   -> TransactionService.latest(args.limit)
   -> TransactionRepository.stream()
   -> JsonlStore.iter_json(transactions.jsonl)
@@ -32,7 +32,7 @@ python -m budget_app
 1. `__main__.py`를 열고 `from budget_app.cli import main` 다음 줄의 `main()`을 확인합니다.
 2. `cli.py`의 `main()`에서 `run()` 호출과 `except AppError`, `except OSError`를 확인합니다.
 3. 바로 위의 `run()`에서 `build_parser()`, `parse_args()`, `build_services()`와 `if args.command` 분기를 차례로 찾습니다.
-4. `list` 분기에서 `transaction_service.latest(args.limit)`를 따라갑니다.
+4. `list` 분기에서 `command_list(args, transaction_service)`를 따라갑니다.
 
 ## 2. 전체 Architecture Map
 
@@ -98,7 +98,7 @@ budget_app/
 ### Model / Validation / Error
 
 - `models.py`: 파일의 dict와 프로그램 안의 객체를 오가는 `Transaction.to_dict()` / `Transaction.from_dict()`를 포함합니다.
-- `validators.py`: `parse_date`, `parse_month`, `parse_amount`, `parse_type`, `parse_tags`가 정상 값 또는 `AppError`를 만듭니다.
+- `validators.py`: `validate_date`, `validate_month`, `validate_amount`, `validate_type`, `parse_tags`가 정상 값 또는 `AppError`를 만듭니다.
 - `errors.py`: `AppError(message, hint)`가 사용자에게 보일 오류와 힌트를 담습니다.
 
 ## 4. 코드 위치 색인
@@ -110,18 +110,18 @@ budget_app/
 | Command dispatch | `cli.py` | `run()` | `main()`의 decorator wrapper | 서비스 메서드, formatter |
 | 서비스 조립 | `cli.py` | `build_services()` | `run()` | `JsonlStore.initialize()`, Repository·Service 생성 |
 | 데이터 모델 | `models.py` | `Transaction`, `Budget`, `SearchCriteria` | Service·Repository | `to_dict()` / `from_dict()` |
-| 거래 업무 | `services.py` | `TransactionService` | `cli.run()` | validator, Repository |
-| 카테고리/예산 | `services.py` | `CategoryService`, `BudgetService` | `cli.run()` | Category/BudgetRepository |
+| 거래 업무 | `services.py` | `TransactionService` | `command_*()` 함수 | validator, Repository |
+| 카테고리/예산 | `services.py` | `CategoryService`, `BudgetService` | `command_*()` 함수 | Category/BudgetRepository |
 | JSONL Store | `repositories.py` | `JsonlStore` | Repository | `Path.open`, `json`, `os.replace` |
 | 거래 저장소 | `repositories.py` | `TransactionRepository` | TransactionService | Store, `Transaction` 변환 |
 | Generator | `repositories.py` | `iter_json()`, `stream()` | Repository·Service의 순회 | `yield` |
 | Decorator | `decorators.py` | `log_timing()` | `@log_timing`으로 `run()` 정의 시 | wrapper, logger |
 | 예외/exit code | `cli.py` | `main()` | `__main__.py` | stderr 출력, `SystemExit(1)` |
-| CSV | `services.py` | `import_csv()`, `export_csv()` | `cli.run()` | `csv.DictReader` / `csv.DictWriter` |
+| CSV | `services.py` | `import_csv()`, `export_csv()` | `command_import()` / `command_export()` | `csv.DictReader` / `csv.DictWriter` |
 
 ## 5. 명령별 실행 추적
 
-모든 명령은 `cli.run()`에서 parser를 만들고 인자를 해석한 뒤, `build_services()`가 `JsonlStore`와 세 Repository·세 Service를 조립한다는 공통 단계를 가집니다. 아래에서는 그 다음의 분기를 봅니다.
+모든 명령은 `cli.run()`에서 parser를 만들고 인자를 해석한 뒤, `build_services()`가 `JsonlStore`와 세 Repository·세 Service를 조립한다는 공통 단계를 가집니다. 그 뒤 `run()`은 명령에 맞는 `command_*()` 함수를 호출합니다.
 
 ### `add`
 
@@ -131,12 +131,13 @@ python -m budget_app add
 
 ```text
 cli.run()
-  -> prompt() 6회: date, tx_type, category, amount, memo, tags
+  -> command_add()
+     -> prompt() 6회: date, tx_type, category, amount, memo, tags
   -> TransactionService.create(...)
      -> TransactionRepository.next_id()
         -> TransactionRepository.stream()
         -> JsonlStore.iter_json(transactions.jsonl)
-     -> parse_date / parse_type / _validated_category / parse_amount / parse_tags
+     -> validate_date / validate_type / validate_registered_category / validate_amount / parse_tags
      -> Transaction(...) 생성
      -> TransactionRepository.add()
      -> JsonlStore.append_json(transaction.to_dict())
@@ -155,7 +156,7 @@ sequenceDiagram
     CLI->>TS: create(date, type, category, amount, memo, tags)
     TS->>TR: next_id()
     TR->>F: stream existing rows
-    TS->>V: parse_*(), _validated_category()
+    TS->>V: validate_*(), validate_registered_category()
     TS->>TR: add(Transaction)
     TR->>F: append JSON line
     CLI-->>User: id가 포함된 완료 메시지
@@ -169,7 +170,8 @@ python -m budget_app list --limit 5
 
 ```text
 cli.run()
-  -> TransactionService.latest(5)
+  -> command_list()
+     -> TransactionService.latest(5)
      -> limit > 0 검증
      -> heapq.nlargest(5, TransactionRepository.stream(), key=(date, id))
         -> JsonlStore.iter_json(transactions.jsonl)
@@ -205,7 +207,7 @@ sequenceDiagram
 python -m budget_app search --from 2026-08-01 --to 2026-08-31 --category food --type expense --q 점심 --tag meal
 ```
 
-`cli.run()`이 여섯 옵션을 `SearchCriteria(...)`로 묶어 `TransactionService.search()`에 전달합니다. `search()`는 지정된 날짜·유형·카테고리를 먼저 검증하고, `stream()`으로 모든 거래를 순회하면서 `_matches(transaction, criteria)`가 참인 거래만 모읍니다. 그 뒤 날짜와 ID 내림차순으로 정렬해 `print_transactions()`에 전달합니다.
+`command_search()`가 여섯 옵션을 `SearchCriteria(...)`로 묶어 `TransactionService.search()`에 전달합니다. `search()`는 지정된 날짜·유형·카테고리를 먼저 검증하고, `stream()`으로 모든 거래를 순회하면서 `_matches(transaction, criteria)`가 참인 거래만 모읍니다. 그 뒤 날짜와 ID 내림차순으로 정렬해 `print_transactions()`에 전달합니다.
 
 ### `update`
 
@@ -213,7 +215,7 @@ python -m budget_app search --from 2026-08-01 --to 2026-08-31 --category food --
 python -m budget_app update --id TX-000001 --amount 20000 --memo "점심 식사"
 ```
 
-`cli.run()`은 모든 변경 가능 필드를 dict로 만들고 `TransactionService.update(id, changes)`를 호출합니다. Service는 전달된 날짜·유형·카테고리·금액만 먼저 검증하고, 내부 `updater(transaction)`가 `dataclasses.replace()`로 새 `Transaction`을 만듭니다. 이후 `TransactionRepository.replace()`가 그 updater를 받아 전체 파일을 다시 씁니다.
+`command_update()`는 모든 변경 가능 필드를 dict로 만들고 `TransactionService.update(id, changes)`를 호출합니다. Service는 전달된 날짜·유형·카테고리·금액만 먼저 검증한 뒤 `TransactionRepository.find_by_id()`로 기존 거래를 찾습니다. `dataclasses.replace()`가 새 `Transaction`을 만들고, `TransactionRepository.update()`가 전체 파일을 다시 씁니다.
 
 ### `delete`
 
@@ -228,12 +230,12 @@ sequenceDiagram
     actor User
     participant CLI as cli.run
     participant TS as TransactionService.update/delete
-    participant TR as TransactionRepository.replace/delete
+    participant TR as TransactionRepository.update/delete
     participant Store as JsonlStore.rewrite_json
     participant File as transactions.jsonl
     User->>CLI: update 또는 delete
     CLI->>TS: id, changes / id
-    TS->>TR: replace(updater) / delete(id)
+    TS->>TR: find_by_id() → update(updated) / delete(id)
     TR->>File: stream existing rows
     TR->>Store: rewrite_json(changed rows)
     Store->>Store: tempfile.mkstemp()
@@ -248,9 +250,9 @@ python -m budget_app budget set --month 2026-08 --amount 500000
 python -m budget_app summary --month 2026-08 --top 3
 ```
 
-`BudgetService.set()`은 `parse_month()`와 `parse_amount()`를 거쳐 `Budget`을 만든 뒤 `BudgetRepository.set()`으로 저장합니다. 같은 달 예산이 있으면 제외하고 새 행을 넣은 뒤 `rewrite_json()`합니다.
+`BudgetService.set()`은 `validate_month()`와 `validate_amount()`를 거쳐 `Budget`을 만든 뒤 `BudgetRepository.set()`으로 저장합니다. 같은 달 예산이 있으면 제외하고 새 행을 넣은 뒤 `rewrite_json()`합니다.
 
-`TransactionService.summary()`는 `parse_month()`와 `top > 0`을 확인한 후 `TransactionRepository.stream()`을 끝까지 순회합니다. `date.startswith(month)`인 거래에서 수입·지출·카테고리별 지출을 계산하고, `BudgetRepository.get(month)`으로 예산을 찾습니다. `formatters.print_summary()`는 예산 객체가 있을 때 사용률과 초과 경고를 표시합니다.
+`TransactionService.summary()`는 `validate_month()`와 `top > 0`을 확인한 후 `TransactionRepository.stream()`을 끝까지 순회합니다. `date.startswith(month)`인 거래에서 수입·지출·카테고리별 지출을 계산하고, `BudgetRepository.get(month)`으로 예산을 찾습니다. `formatters.print_summary()`는 예산 객체가 있을 때 사용률과 초과 경고를 표시합니다.
 
 ```mermaid
 sequenceDiagram
@@ -318,11 +320,11 @@ main()
     │   └── JsonlStore.initialize()
     ├── add -> TransactionService.create()
     │   ├── TransactionRepository.next_id() -> stream() -> iter_json()
-    │   ├── parse_date/type/amount/tags(), _validated_category()
+    │   ├── validate_date/type/amount(), parse_tags(), validate_registered_category()
     │   └── TransactionRepository.add() -> append_json()
     ├── list -> TransactionService.latest() -> stream() -> iter_json() -> Transaction.from_dict()
     ├── search -> TransactionService.search() -> _matches() + stream()
-    ├── update -> TransactionService.update() -> TransactionRepository.replace() -> rewrite_json()
+    ├── update -> TransactionService.update() -> find_by_id() -> TransactionRepository.update() -> rewrite_json()
     ├── delete -> TransactionService.delete() -> TransactionRepository.delete() -> rewrite_json()
     ├── summary -> TransactionService.summary() -> stream() + BudgetRepository.get()
     ├── budget set -> BudgetService.set() -> BudgetRepository.set() -> rewrite_json()
@@ -336,9 +338,9 @@ main()
 **파일:** `repositories.py`
 **함수:** `JsonlStore.iter_json(path)`와 `TransactionRepository.stream()`
 **yield 위치:** 각각 `yield data`, `yield Transaction.from_dict(row)`
-**누가 호출하는가:** `TransactionRepository.stream()`은 `latest`, `search`, `summary`, `next_id`, `replace`, `delete`, `CategoryService.remove`, `export_csv` 등에서 사용됩니다. `stream()`이 내부에서 `iter_json()`을 순회합니다.
+**누가 호출하는가:** `TransactionRepository.stream()`은 `latest`, `search`, `summary`, `next_id`, `find_by_id`, `update`, `delete`, `CategoryService.remove`, `export_csv` 등에서 사용됩니다. `stream()`이 내부에서 `iter_json()`을 순회합니다.
 **실제 파일 읽기 시작:** `iter_json()` generator가 처음 소비될 때 `with path.open("r", encoding="utf-8")`가 실행됩니다. `stream()`을 호출한 순간 파일 전체가 즉시 읽히지는 않습니다.
-**한 번에 메모리에 있는 것:** 현재 JSONL의 한 줄 `dict`, 그로부터 만든 한 `Transaction`이 기본 단위입니다. 단, `search()`·`replace()`·`delete()`처럼 결과/교체 행을 모으는 함수는 별도의 list를 만듭니다.
+**한 번에 메모리에 있는 것:** 현재 JSONL의 한 줄 `dict`, 그로부터 만든 한 `Transaction`이 기본 단위입니다. 단, `search()`·`update()`·`delete()`처럼 결과/교체 행을 모으는 함수는 별도의 list를 만듭니다.
 
 ```python
 # repositories.py
@@ -381,7 +383,7 @@ main()이 run()을 호출할 때
 ```mermaid
 flowchart LR
     Input[대화형 입력 또는 CSV 행] --> Create[TransactionService.create]
-    Create --> Validate[parse_* / _validated_category]
+    Create --> Validate[validate_* / validate_registered_category / parse_tags]
     Validate --> Model[Transaction dataclass]
     Model --> Dict[Transaction.to_dict]
     Dict --> Write[JsonlStore.append_json]
@@ -398,11 +400,11 @@ flowchart LR
 ## 10. update/delete와 파일 안전성
 
 **파일:** `repositories.py`
-**핵심 함수:** `TransactionRepository.replace()`, `TransactionRepository.delete()`, `JsonlStore.rewrite_json()`.
+**핵심 함수:** `TransactionRepository.find_by_id()`, `TransactionRepository.update()`, `TransactionRepository.delete()`, `JsonlStore.rewrite_json()`.
 
 JSONL의 중간 한 줄을 SQL의 `UPDATE`처럼 제자리에서 안전하게 바꾸기 어렵기 때문에, 이 구현은 기존 파일을 순회하여 바뀐 전체 행 목록을 만든 뒤 새 파일로 씁니다.
 
-1. `replace()`는 일치 ID에 `updater(transaction)`를 적용하고 나머지 거래도 `rows`에 넣습니다.
+1. `find_by_id()`는 수정할 기존 거래를 찾고, `update()`는 일치 ID에 이미 만들어진 수정본을 넣은 뒤 나머지 거래도 `rows`에 넣습니다.
 2. `delete()`는 일치 ID만 `rows`에 넣지 않습니다.
 3. 실제 변경 대상이 있었을 때만 `rewrite_json(path, rows)`를 호출합니다.
 4. `rewrite_json()`은 `tempfile.mkstemp(..., dir=self.data_dir)`로 같은 데이터 디렉터리에 임시 파일을 만듭니다.
@@ -418,18 +420,19 @@ JSONL의 중간 한 줄을 SQL의 `UPDATE`처럼 제자리에서 안전하게 �
 | `TransactionService.create(..., amount: Union[str, int], ...) -> Transaction` | CLI에서 온 문자열 또는 테스트/내부의 정수를 금액으로 받고, 성공하면 거래 객체 하나를 반환합니다. |
 | `TransactionRepository.stream() -> Iterator[Transaction]` | 모든 거래 list가 아니라 거래를 하나씩 내놓는 iterator를 반환합니다. |
 | `JsonlStore.iter_json(path: Path) -> Iterator[dict[str, Any]]` | `Path` 하나를 받아 JSON 객체 한 줄씩을 dict로 제공합니다. 값의 타입은 JSON 필드마다 달라 `Any`입니다. |
-| `TransactionRepository.replace(transaction_id: str, updater: Callable[[Transaction], Transaction]) -> bool` | ID와 “거래 하나를 받아 새 거래 하나를 돌려주는 함수”를 받고, 대상 ID 존재 여부를 반환합니다. |
+| `TransactionRepository.find_by_id(transaction_id: str) -> Optional[Transaction]` | 해당 ID의 거래가 있으면 `Transaction`, 없으면 `None`을 반환합니다. |
+| `TransactionRepository.update(updated_transaction: Transaction) -> bool` | 이미 만들어진 수정본 거래를 받아 같은 ID의 행을 바꾸고, 대상 ID 존재 여부를 반환합니다. |
 | `TransactionService.update(transaction_id: str, changes: dict[str, Optional[str]]) -> bool` | 변경 필드 dict에서 각 값은 문자열 또는 미지정 `None`이며, 대상이 있었는지 반환합니다. |
 | `BudgetRepository.get(month: str) -> Optional[Budget]` | 해당 월 예산이 있으면 `Budget`, 없으면 `None`입니다. |
 
-타입 힌트는 실행 전에 입력을 강제하지 않습니다. 이 프로젝트에서 실제 유효성 판단은 `parse_*()`와 `_validated_category()`가 하고, 타입 힌트는 함수가 기대하고 반환하는 데이터 모양을 독자에게 알려 줍니다.
+타입 힌트는 실행 전에 입력을 강제하지 않습니다. 이 프로젝트에서 실제 유효성 판단은 `validate_*()`와 `validate_registered_category()`가 하고, 타입 힌트는 함수가 기대하고 반환하는 데이터 모양을 독자에게 알려 줍니다.
 
 ## 12. 오류와 종료 코드의 경로
 
-`parse_date()` 같은 validator나 Service/Repository는 사용자에게 알려야 할 문제에서 `AppError`를 발생시킵니다. `cli.main()`이 이를 받아 `message`와 선택적 `hint`를 표준 오류로 출력한 뒤 `SystemExit(1)`을 발생시킵니다. 파일 접근 문제는 같은 함수의 `except OSError`가 처리합니다. 예외가 없는 `run()`의 반환값은 `0`이므로 정상 종료입니다.
+`validate_date()` 같은 validator나 Service/Repository는 사용자에게 알려야 할 문제에서 `AppError`를 발생시킵니다. `cli.main()`이 이를 받아 `message`와 선택적 `hint`를 표준 오류로 출력한 뒤 `SystemExit(1)`을 발생시킵니다. 파일 접근 문제는 같은 함수의 `except OSError`가 처리합니다. 예외가 없는 `run()`의 반환값은 `0`이므로 정상 종료입니다.
 
 ```text
-parse_date() / TransactionService / JsonlStore
+validate_date() / TransactionService / JsonlStore
   -> AppError 또는 OSError
   -> cli.main() except
   -> stderr 출력
@@ -448,9 +451,9 @@ parse_date() / TransactionService / JsonlStore
 6. **Service와 Repository의 차이는?** — `TransactionService.summary()`의 합계 규칙과 `TransactionRepository.add()`의 저장 규칙을 비교합니다.
 7. **Decorator는 왜 쓰는가?** — `cli.py: @log_timing`, `decorators.py: log_timing()`. 명령 로직에 timing 코드를 반복하지 않습니다.
 8. **Decorator가 없으면 어떻게 되는가?** — `run()`의 전후에 `perf_counter()`와 `logger.info()`를 직접 반복해야 합니다. 현재는 wrapper가 그 일을 합니다.
-9. **Type hint가 실행 전 타입을 강제하는가?** — 아니요. `validators.py: parse_amount()`가 문자열을 정수로 변환하고 검증하는 실제 지점입니다.
+9. **Type hint가 실행 전 타입을 강제하는가?** — 아니요. `validators.py: validate_amount()`가 문자열을 정수로 변환하고 검증하는 실제 지점입니다.
 10. **왜 dataclass를 쓰는가?** — `models.py: Transaction`, `Budget`, `SearchCriteria`. 데이터 필드와 변환 책임을 한 모델에 둡니다.
-11. **왜 update/delete는 전체 파일을 다시 쓰는가?** — `TransactionRepository.replace/delete()`. JSONL의 특정 행을 제자리에서 안전하게 편집하지 않고 새 행 집합을 만듭니다.
+11. **왜 update/delete는 전체 파일을 다시 쓰는가?** — `TransactionRepository.update/delete()`. JSONL의 특정 행을 제자리에서 안전하게 편집하지 않고 새 행 집합을 만듭니다.
 12. **임시 파일 교체는 무엇을 보호하는가?** — `JsonlStore.rewrite_json()`. 새 파일 완성 뒤 `os.replace()` 하므로 중간 실패에서 원본 훼손 위험을 줄입니다.
 13. **import의 잘못된 행은 어떻게 되는가?** — `TransactionService.import_csv()`. 그 행은 `AppError`를 잡아 `skipped`가 되고 다음 행을 계속 읽습니다.
 14. **사용 중인 category 삭제를 어떻게 막는가?** — `CategoryService.remove()`. `transactions.stream()`으로 사용 여부를 검사합니다.
@@ -518,7 +521,7 @@ python -m budget_app delete --id TX-000001
 
 1. update의 옵션 dict는 `cli.py` 어디에서 만들어지나요?
 2. `frozen=True`인 `Transaction`을 update할 때 쓰는 함수는 무엇인가요?
-3. `replace()`와 `delete()`가 공통으로 호출하는 Store 함수는 무엇인가요?
+3. `update()`와 `delete()`가 공통으로 호출하는 Store 함수는 무엇인가요?
 4. 임시 파일 생성과 원자적 교체 API는 무엇인가요?
 5. 존재하지 않는 ID일 때 파일을 다시 쓰지 않는 조건을 찾으세요.
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -30,22 +30,23 @@ class JsonlStore:
                     file.write(json.dumps({"name": name}, ensure_ascii=False) + "\n")
 
     def iter_json(self, path: Path) -> Iterator[dict[str, Any]]:
+        """Read a JSONL file lazily and yield one decoded JSON object at a time."""
         if not path.exists():
             return
         with path.open("r", encoding="utf-8") as file:
             for line_no, line in enumerate(file, start=1):
-                line = line.strip()
-                if not line:
+                json_line = line.strip()
+                if not json_line:
                     continue
                 try:
-                    data = json.loads(line)
+                    json_record = json.loads(json_line)
                 except json.JSONDecodeError as exc:
                     raise AppError(
                         f"저장 파일을 읽을 수 없습니다: {path.name}:{line_no}",
                         "파일 내용을 확인하거나 백업에서 복구하세요.",
                     ) from exc
-                if isinstance(data, dict):
-                    yield data
+                if isinstance(json_record, dict):
+                    yield json_record
 
     def append_json(self, path: Path, data: dict[str, Any]) -> None:
         with path.open("a", encoding="utf-8") as file:
@@ -74,8 +75,9 @@ class TransactionRepository:
         self.store.append_json(self.store.transactions_path, transaction.to_dict())
 
     def stream(self) -> Iterator[Transaction]:
-        for row in self.store.iter_json(self.store.transactions_path):
-            yield Transaction.from_dict(row)
+        """Convert each stored transaction dict into a Transaction as it is requested."""
+        for transaction_data in self.store.iter_json(self.store.transactions_path):
+            yield Transaction.from_dict(transaction_data)
 
     def next_id(self) -> str:
         max_number = 0
@@ -87,12 +89,18 @@ class TransactionRepository:
                     continue
         return f"TX-{max_number + 1:06d}"
 
-    def replace(self, transaction_id: str, updater: Callable[[Transaction], Transaction]) -> bool:
+    def find_by_id(self, transaction_id: str) -> Optional[Transaction]:
+        for transaction in self.stream():
+            if transaction.id == transaction_id:
+                return transaction
+        return None
+
+    def update(self, updated_transaction: Transaction) -> bool:
         found = False
         rows: list[dict[str, Any]] = []
         for transaction in self.stream():
-            if transaction.id == transaction_id:
-                transaction = updater(transaction)
+            if transaction.id == updated_transaction.id:
+                transaction = updated_transaction
                 found = True
             rows.append(transaction.to_dict())
         if found:

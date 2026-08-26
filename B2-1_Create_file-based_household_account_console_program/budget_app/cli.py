@@ -89,6 +89,86 @@ def prompt(label: str) -> str:
     return input(label).strip()
 
 
+def command_add(args: argparse.Namespace, transaction_service: TransactionService) -> None:
+    transaction = transaction_service.create(
+        date=prompt("날짜(YYYY-MM-DD): "),
+        tx_type=prompt("타입(income/expense): "),
+        category=prompt("카테고리: "),
+        amount=prompt("금액(양수): "),
+        memo=prompt("메모(선택): "),
+        tags=prompt("태그(쉼표로 구분, 없으면 엔터): "),
+    )
+    print(f"[저장 완료] id={transaction.id}")
+
+
+def command_list(args: argparse.Namespace, transaction_service: TransactionService) -> None:
+    print_transactions(transaction_service.latest(args.limit))
+
+
+def command_search(args: argparse.Namespace, transaction_service: TransactionService) -> None:
+    criteria = SearchCriteria(
+        date_from=args.date_from,
+        date_to=args.date_to,
+        category=args.category,
+        tx_type=args.tx_type,
+        query=args.q,
+        tag=args.tag,
+    )
+    print_transactions(transaction_service.search(criteria))
+
+
+def command_summary(args: argparse.Namespace, transaction_service: TransactionService) -> None:
+    print_summary(transaction_service.summary(args.month, args.top))
+
+
+def command_budget(args: argparse.Namespace, budget_service: BudgetService) -> None:
+    budget = budget_service.set(args.month, args.amount)
+    print(f"[저장 완료] {budget.month} 예산 {budget.amount}원")
+
+
+def command_category(args: argparse.Namespace, category_service: CategoryService) -> None:
+    if args.category_command == "list":
+        for category in category_service.list():
+            print(f"- {category}")
+    elif args.category_command == "add":
+        name = args.name or prompt("카테고리명: ")
+        created = category_service.add(name)
+        print(f"[저장 완료] category={name}" if created else f"[안내] 이미 존재합니다: {name}")
+    elif args.category_command == "remove":
+        removed = category_service.remove(args.name)
+        print(f"[삭제 완료] category={args.name}" if removed else f"[안내] 없는 카테고리입니다: {args.name}")
+
+
+def command_update(args: argparse.Namespace, transaction_service: TransactionService) -> None:
+    changed = transaction_service.update(
+        args.id,
+        {
+            "date": args.date,
+            "type": args.type,
+            "category": args.category,
+            "amount": args.amount,
+            "memo": args.memo,
+            "tags": args.tags,
+        },
+    )
+    print(f"[수정 완료] id={args.id}" if changed else f"[안내] 없는 거래입니다: {args.id}")
+
+
+def command_delete(args: argparse.Namespace, transaction_service: TransactionService) -> None:
+    deleted = transaction_service.delete(args.id)
+    print(f"[삭제 완료] id={args.id}" if deleted else f"[안내] 없는 거래입니다: {args.id}")
+
+
+def command_import(args: argparse.Namespace, transaction_service: TransactionService) -> None:
+    imported, skipped = transaction_service.import_csv(args.source)
+    print(f"[완료] imported={imported}, skipped={skipped}")
+
+
+def command_export(args: argparse.Namespace, transaction_service: TransactionService) -> None:
+    count = transaction_service.export_csv(args.out, args.month, args.date_from, args.date_to)
+    print(f"[완료] {args.out} ({count} records)")
+
+
 @log_timing
 def run(argv: Optional[list[str]] = None) -> int:
     logging.basicConfig(filename="budget_app.log", level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -97,68 +177,25 @@ def run(argv: Optional[list[str]] = None) -> int:
     transaction_service, category_service, budget_service = build_services(args.data_dir)
 
     if args.command == "add":
-        transaction = transaction_service.create(
-            date=prompt("날짜(YYYY-MM-DD): "),
-            tx_type=prompt("타입(income/expense): "),
-            category=prompt("카테고리: "),
-            amount=prompt("금액(양수): "),
-            memo=prompt("메모(선택): "),
-            tags=prompt("태그(쉼표로 구분, 없으면 엔터): "),
-        )
-        print(f"[저장 완료] id={transaction.id}")
+        command_add(args, transaction_service)
     elif args.command == "list":
-        print_transactions(transaction_service.latest(args.limit))
+        command_list(args, transaction_service)
     elif args.command == "search":
-        print_transactions(
-            transaction_service.search(
-                SearchCriteria(
-                    date_from=args.date_from,
-                    date_to=args.date_to,
-                    category=args.category,
-                    tx_type=args.tx_type,
-                    query=args.q,
-                    tag=args.tag,
-                )
-            )
-        )
+        command_search(args, transaction_service)
     elif args.command == "summary":
-        print_summary(transaction_service.summary(args.month, args.top))
+        command_summary(args, transaction_service)
     elif args.command == "budget":
-        budget = budget_service.set(args.month, args.amount)
-        print(f"[저장 완료] {budget.month} 예산 {budget.amount}원")
+        command_budget(args, budget_service)
     elif args.command == "category":
-        if args.category_command == "list":
-            for category in category_service.list():
-                print(f"- {category}")
-        elif args.category_command == "add":
-            name = args.name or prompt("카테고리명: ")
-            created = category_service.add(name)
-            print(f"[저장 완료] category={name}" if created else f"[안내] 이미 존재합니다: {name}")
-        elif args.category_command == "remove":
-            removed = category_service.remove(args.name)
-            print(f"[삭제 완료] category={args.name}" if removed else f"[안내] 없는 카테고리입니다: {args.name}")
+        command_category(args, category_service)
     elif args.command == "update":
-        changed = transaction_service.update(
-            args.id,
-            {
-                "date": args.date,
-                "type": args.type,
-                "category": args.category,
-                "amount": args.amount,
-                "memo": args.memo,
-                "tags": args.tags,
-            },
-        )
-        print(f"[수정 완료] id={args.id}" if changed else f"[안내] 없는 거래입니다: {args.id}")
+        command_update(args, transaction_service)
     elif args.command == "delete":
-        deleted = transaction_service.delete(args.id)
-        print(f"[삭제 완료] id={args.id}" if deleted else f"[안내] 없는 거래입니다: {args.id}")
+        command_delete(args, transaction_service)
     elif args.command == "import":
-        imported, skipped = transaction_service.import_csv(args.source)
-        print(f"[완료] imported={imported}, skipped={skipped}")
+        command_import(args, transaction_service)
     elif args.command == "export":
-        count = transaction_service.export_csv(args.out, args.month, args.date_from, args.date_to)
-        print(f"[완료] {args.out} ({count} records)")
+        command_export(args, transaction_service)
     return 0
 
 

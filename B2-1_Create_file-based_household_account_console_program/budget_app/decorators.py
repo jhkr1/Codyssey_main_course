@@ -3,19 +3,15 @@ from __future__ import annotations
 import functools
 import logging
 import time
-from collections.abc import Callable
-from typing import Any, TypeVar
-
-R = TypeVar("R")
 
 logger = logging.getLogger("budget_app")
 
 
-def log_timing(func: Callable[..., R]) -> Callable[..., R]:
-    """Log command execution time without mixing timing code into CLI logic."""
+def log_timing(func):
+    """명령 실행 시간을 로그에 기록한다."""
 
     @functools.wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> R:
+    def wrapper(*args, **kwargs):
         started = time.perf_counter()
         try:
             return func(*args, **kwargs)

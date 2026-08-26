@@ -8,7 +8,7 @@ from budget_app.errors import AppError
 VALID_TYPES = {"income", "expense"}
 
 
-def parse_date(value: str) -> str:
+def validate_date(value: str) -> str:
     try:
         datetime.strptime(value, "%Y-%m-%d")
     except ValueError as exc:
@@ -16,7 +16,7 @@ def parse_date(value: str) -> str:
     return value
 
 
-def parse_month(value: str) -> str:
+def validate_month(value: str) -> str:
     try:
         datetime.strptime(value, "%Y-%m")
     except ValueError as exc:
@@ -24,7 +24,7 @@ def parse_month(value: str) -> str:
     return value
 
 
-def parse_amount(value: Union[str, int]) -> int:
+def validate_amount(value: Union[str, int]) -> int:
     try:
         amount = int(value)
     except (TypeError, ValueError) as exc:
@@ -34,7 +34,7 @@ def parse_amount(value: Union[str, int]) -> int:
     return amount
 
 
-def parse_type(value: str) -> str:
+def validate_type(value: str) -> str:
     if value not in VALID_TYPES:
         raise AppError("타입은 income 또는 expense만 가능합니다.", "예: expense")
     return value

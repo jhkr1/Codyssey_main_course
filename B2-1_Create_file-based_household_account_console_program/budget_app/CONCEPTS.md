@@ -30,9 +30,9 @@
 
 ## 5. Decorator와 first-class function
 
-Python의 함수는 변수에 담고 다른 함수의 인자로 전달하거나 함수에서 반환할 수 있는 first-class object다. decorator는 이 성질을 이용해 원래 함수를 감싼 wrapper 함수를 만든다. `decorators.py`의 `log_timing(func)`은 `wrapper()`를 만들어 실행 시간을 로그에 남긴다.
+decorator는 원래 함수를 감싼 wrapper 함수를 만드는 문법이다. 이 프로젝트의 `log_timing(func)`은 명령 실행 시간을 로그에 기록하는 한 가지 일만 한다.
 
-`cli.py`에서 `@log_timing`이 붙은 `run()`은 개념적으로 `run = log_timing(run)`과 같다. 따라서 CLI의 `main()`이 `run()`을 호출하면 먼저 wrapper가 실행되어 시간을 기록할 준비를 하고, 원래 `run()`을 실행한 뒤 성공·예외 어느 경우든 `finally`에서 경과 시간을 `budget_app.log`에 남긴다. 이 공통 관심사(실행 시간 측정)를 CLI 분기마다 반복하지 않게 한다.
+`cli.py`에서 `@log_timing`이 붙은 `run()`은 개념적으로 `run = log_timing(run)`과 같다. `run()`을 호출하면 wrapper가 먼저 시작 시간을 기록하고 원래 `run()`을 실행한다. 실행이 끝나거나 예외가 나면 `finally`에서 경과 시간을 `budget_app.log`에 남긴다.
 
 ## 6. `functools.wraps`
 
@@ -40,7 +40,7 @@ Python의 함수는 변수에 담고 다른 함수의 인자로 전달하거나 
 
 ## 7. Type hint
 
-타입 힌트는 함수의 입력과 출력 계약을 드러낸다. 예를 들어 `TransactionRepository.stream() -> Iterator[Transaction]`은 리스트가 아니라 거래를 하나씩 내보내는 iterator임을 말하고, `BudgetRepository.get(month: str) -> Optional[Budget]`은 예산이 없으면 `None`일 수 있음을 표시한다. `TransactionService.create()`의 `amount: Union[str, int]`, `SearchCriteria`의 `Optional[str]`, `list[Transaction]`, `Callable[[Transaction], Transaction]`도 실제 사용 타입을 설명한다.
+타입 힌트는 함수의 입력과 출력 계약을 드러낸다. 예를 들어 `TransactionRepository.stream() -> Iterator[Transaction]`은 리스트가 아니라 거래를 하나씩 내보내는 iterator임을 말하고, `BudgetRepository.get(month: str) -> Optional[Budget]`은 예산이 없으면 `None`일 수 있음을 표시한다. `TransactionService.create()`의 `amount: Union[str, int]`, `SearchCriteria`의 `Optional[str]`, `list[Transaction]`도 실제 사용 타입을 설명한다.
 
 Python의 type hint는 기본적으로 실행 시간에 타입을 강제하지 않는다. 대신 IDE 자동완성, 정적 분석, 호출자와 구현자 사이의 계약, 유지보수 시 이해를 돕는다. `Iterable`과 `Generator`라는 타입은 이 코드에 직접 선언되어 있지 않으므로, 여기서는 사용된 `Iterator`를 중심으로 읽는 것이 정확하다.
 
@@ -64,7 +64,7 @@ Python의 type hint는 기본적으로 실행 시간에 타입을 강제하지 �
 
 ## 11. Validation과 예외
 
-형식 검사는 `validators.py`에 있다. `parse_date`, `parse_month`, `parse_amount`, `parse_type`, `parse_tags`가 날짜·월·양수 금액·income/expense·태그를 처리하며, 등록된 카테고리 검사는 service의 `_validated_category()`가 repository를 통해 한다. ID는 별도 형식 validator가 없고 repository의 `next_id()`가 기존 `TX-` 번호 중 최대값 다음을 만든다.
+형식 검사는 `validators.py`에 있다. `validate_date`, `validate_month`, `validate_amount`, `validate_type`, `parse_tags`가 날짜·월·양수 금액·income/expense·태그를 처리하며, 등록된 카테고리 검사는 service의 `validate_registered_category()`가 repository를 통해 한다. ID는 별도 형식 validator가 없고 repository의 `next_id()`가 기존 `TX-` 번호 중 최대값 다음을 만든다.
 
 검증 실패는 `AppError`를 `raise`한다. `cli.main()`이 이를 `except`해 오류와 힌트를 stderr로 출력하고 `SystemExit(1)`로 끝낸다. JSONL 파싱 오류도 `iter_json()`에서 `AppError`로 변환되고, 파일 I/O의 `OSError`는 `main()`이 별도 사용자 메시지로 처리한다. 내부 traceback을 사용자에게 노출하지 않아 입력 오류를 읽기 쉬운 메시지로 바꾼다.
 
@@ -74,7 +74,7 @@ CLI에서 0은 정상 종료, 0이 아닌 값은 실패를 뜻한다. 성공한 
 
 ## 13. update/delete와 atomic replace
 
-파일 중간의 JSONL 행을 제자리에서 안전하게 수정·삭제하기는 어렵다. `TransactionRepository.replace()`와 `delete()`는 모든 거래를 순회해 변경 또는 제외한 `rows`를 만들고, `JsonlStore.rewrite_json()`에 전달한다. `BudgetRepository.set()`과 `CategoryRepository.remove()`도 같은 재작성 방식을 사용한다.
+파일 중간의 JSONL 행을 제자리에서 안전하게 수정·삭제하기는 어렵다. `TransactionRepository.update()`와 `delete()`는 모든 거래를 순회해 변경 또는 제외한 `rows`를 만들고, `JsonlStore.rewrite_json()`에 전달한다. `BudgetRepository.set()`과 `CategoryRepository.remove()`도 같은 재작성 방식을 사용한다.
 
 `rewrite_json()`은 `tempfile.mkstemp()`로 같은 데이터 폴더에 임시 파일을 만들고, 모든 행을 성공적으로 쓴 뒤 `os.replace(temp_name, path)`로 원본과 바꾼다. 쓰기 중 실패하면 원본을 직접 덮어쓴 경우보다 손상 위험이 낮고 임시 파일을 삭제하려 한다. 이것은 파일 교체 단위의 안전성으로, DB의 동시성·격리까지 포함한 transaction과는 다르다.
 
@@ -90,7 +90,7 @@ export는 월 또는 날짜 범위를 요구하며 stream에서 조건에 맞는
 
 ## 15. Category와 referential integrity
 
-카테고리는 `categories.jsonl`에 별도 저장되고 `Transaction.category`가 그 이름을 참조한다. 새 거래·검색·수정의 카테고리는 `_validated_category()`가 존재 여부를 검사한다. 삭제 시 `CategoryService.remove()`가 모든 거래를 stream으로 검사해 사용 중인 이름이면 `AppError`를 낸다.
+카테고리는 `categories.jsonl`에 별도 저장되고 `Transaction.category`가 그 이름을 참조한다. 새 거래·검색·수정의 카테고리는 `validate_registered_category()`가 존재 여부를 검사한다. 삭제 시 `CategoryService.remove()`가 모든 거래를 stream으로 검사해 사용 중인 이름이면 `AppError`를 낸다.
 
 이는 애플리케이션 코드가 지키는 참조 무결성이다. DB foreign key처럼 DB 엔진이 강제하는 제약과 동일하지 않으며, 동시 실행까지 보호하지는 않는다.
 
